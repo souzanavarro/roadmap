@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+from geocode import obter_coordenadas_com_fallback
 
 def dashboard_pedidos():
     st.header("Dashboard de Pedidos")
@@ -19,6 +20,26 @@ def dashboard_pedidos():
             pedidos_df = pd.read_csv(pedidos_file)
         else:
             pedidos_df = pd.read_excel(pedidos_file, engine="openpyxl")
+        # Obter coordenadas se não existirem
+        if 'Latitude' not in pedidos_df.columns or 'Longitude' not in pedidos_df.columns or pedidos_df['Latitude'].isnull().any() or pedidos_df['Longitude'].isnull().any():
+            st.info("Obtendo coordenadas para os endereços...")
+            coordenadas_salvas = {}
+            api_key = "6f522c67add14152926990afbe127384"
+            def get_coords(row):
+                endereco = f"{row['Endereço de Entrega']}, {row['Bairro de Entrega']}, {row['Cidade de Entrega']}"
+                lat, lon = obter_coordenadas_com_fallback(endereco, coordenadas_salvas, api_key)
+                return pd.Series({'Latitude': lat, 'Longitude': lon})
+            coords = pedidos_df.apply(get_coords, axis=1)
+            pedidos_df['Latitude'] = coords['Latitude']
+            pedidos_df['Longitude'] = coords['Longitude']
+            # Salvar coordenadas em database_coordernadas.csv
+            coord_df = pd.DataFrame({
+                'Endereço Completo': pedidos_df['Endereço de Entrega'] + ', ' + pedidos_df['Bairro de Entrega'] + ', ' + pedidos_df['Cidade de Entrega'],
+                'Latitude': pedidos_df['Latitude'],
+                'Longitude': pedidos_df['Longitude']
+            })
+            coord_db_path = os.path.join("src", "database", "database_coordernadas.csv")
+            coord_df.to_csv(coord_db_path, index=False)
         st.dataframe(pedidos_df)
         # Salvar no database local na pasta src/database
         os.makedirs(os.path.join("src", "database"), exist_ok=True)

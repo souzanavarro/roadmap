@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+from geocode import obter_coordenadas_com_fallback
 
 def dashboard_ia():
     st.header("Dashboard IA - Base de Roteirizações")
@@ -10,6 +11,20 @@ def dashboard_ia():
             ia_df = pd.read_csv(ia_file)
         else:
             ia_df = pd.read_excel(ia_file, engine="openpyxl")
+        # Formar o endereço completo
+        if 'Endereço Completo' not in ia_df.columns:
+            ia_df['Endereço Completo'] = ia_df['Endereço de Entrega'] + ', ' + ia_df['Bairro de Entrega'] + ', ' + ia_df['Cidade de Entrega']
+        # Obter coordenadas se não existirem
+        if 'Latitude' not in ia_df.columns or 'Longitude' not in ia_df.columns or ia_df['Latitude'].isnull().any() or ia_df['Longitude'].isnull().any():
+            st.info("Obtendo coordenadas para os endereços...")
+            coordenadas_salvas = {}
+            api_key = "6f522c67add14152926990afbe127384"
+            def get_coords(row):
+                lat, lon = obter_coordenadas_com_fallback(row['Endereço Completo'], coordenadas_salvas, api_key)
+                return pd.Series({'Latitude': lat, 'Longitude': lon})
+            coords = ia_df.apply(get_coords, axis=1)
+            ia_df['Latitude'] = coords['Latitude']
+            ia_df['Longitude'] = coords['Longitude']
         st.dataframe(ia_df)
         # Salvar no database local na pasta src/database
         os.makedirs(os.path.join("src", "database"), exist_ok=True)
