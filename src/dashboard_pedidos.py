@@ -34,7 +34,7 @@ def dashboard_pedidos():
             pedidos_df['Longitude'] = coords['Longitude']
             # Salvar coordenadas em database_coordernadas.csv
             coord_df = pd.DataFrame({
-                'Endereço Completo': pedidos_df['Endereço de Entrega'] + ', ' + pedidos_df['Bairro de Entrega'] + ', ' + pedidos_df['Cidade de Entrega'],
+                'Endereço': pedidos_df['Endereço de Entrega'] + ', ' + pedidos_df['Bairro de Entrega'] + ', ' + pedidos_df['Cidade de Entrega'],
                 'Latitude': pedidos_df['Latitude'],
                 'Longitude': pedidos_df['Longitude']
             })
