@@ -24,10 +24,19 @@ def dashboard_pedidos():
         if 'Latitude' not in pedidos_df.columns or 'Longitude' not in pedidos_df.columns or pedidos_df['Latitude'].isnull().any() or pedidos_df['Longitude'].isnull().any():
             st.info("Obtendo coordenadas para os endereços...")
             coordenadas_salvas = {}
+            # Carregar coordenadas já salvas
+            coord_db_path = os.path.join("src", "database", "database_coordernadas.csv")
+            if os.path.exists(coord_db_path):
+                coord_db = pd.read_csv(coord_db_path)
+                for _, row in coord_db.iterrows():
+                    coordenadas_salvas[row['Endereço']] = (row['Latitude'], row['Longitude'])
             api_key = "6f522c67add14152926990afbe127384"
             def get_coords(row):
                 endereco = f"{row['Endereço de Entrega']}, {row['Bairro de Entrega']}, {row['Cidade de Entrega']}"
-                lat, lon = obter_coordenadas_com_fallback(endereco, coordenadas_salvas, api_key)
+                if endereco in coordenadas_salvas:
+                    lat, lon = coordenadas_salvas[endereco]
+                else:
+                    lat, lon = obter_coordenadas_com_fallback(endereco, coordenadas_salvas, api_key)
                 return pd.Series({'Latitude': lat, 'Longitude': lon})
             coords = pedidos_df.apply(get_coords, axis=1)
             pedidos_df['Latitude'] = coords['Latitude']
@@ -38,7 +47,10 @@ def dashboard_pedidos():
                 'Latitude': pedidos_df['Latitude'],
                 'Longitude': pedidos_df['Longitude']
             })
-            coord_db_path = os.path.join("src", "database", "database_coordernadas.csv")
+            coord_df.drop_duplicates(subset=['Endereço'], inplace=True)
+            if os.path.exists(coord_db_path):
+                coord_db = pd.read_csv(coord_db_path)
+                coord_df = pd.concat([coord_db, coord_df]).drop_duplicates(subset=['Endereço'], keep='last')
             coord_df.to_csv(coord_db_path, index=False)
         st.dataframe(pedidos_df)
         # Salvar no database local na pasta src/database
