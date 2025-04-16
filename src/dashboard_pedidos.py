@@ -31,21 +31,26 @@ def dashboard_pedidos():
                 for _, row in coord_db.iterrows():
                     coordenadas_salvas[row['Endereço']] = (row['Latitude'], row['Longitude'])
             api_key = "6f522c67add14152926990afbe127384"
-            # Priorizar Nominatim e usar OpenCage como fallback
+            # Priorizar OpenCage e usar Nominatim como fallback
             def get_coords(row):
                 endereco = f"{row['Endereço de Entrega']}, {row['Bairro de Entrega']}, {row['Cidade de Entrega']}"
                 if endereco in coordenadas_salvas:
                     lat, lon = coordenadas_salvas[endereco]
                 else:
                     try:
-                        lat, lon = obter_coordenadas_com_fallback(endereco, coordenadas_salvas, api_key)
+                        api_keys = [
+                            "5161dbd006cf4c43a7f7dd789ee1a3da",
+                            "6f522c67add14152926990afbe127384",
+                            "6c2d02cafb2e4b49aa3485a62262e54b"
+                        ]
+                        lat, lon = obter_coordenadas_com_fallback(endereco, coordenadas_salvas, api_keys)
                         # Trata caso a API não retorne resultado
                         if lat is None or lon is None:
                             st.warning(f"Não foi possível obter coordenadas para: {endereco}. Deixando valores como nulos.")
                             lat, lon = None, None
                     except Exception as e:
-                        st.warning(f"Erro ao tentar obter as coordenadas para '{endereco}': {e}. Usando coordenadas de partida.")
-                        lat, lon = -23.0838, -47.1336  # Coordenadas de partida
+                        st.warning(f"Erro ao tentar obter as coordenadas para '{endereco}': {e}. Deixando valores como nulos.")
+                        lat, lon = None, None
                 return pd.Series({'Latitude': lat, 'Longitude': lon})
             coords = pedidos_df.apply(get_coords, axis=1)
             pedidos_df['Latitude'] = coords['Latitude']
