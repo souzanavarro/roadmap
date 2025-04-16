@@ -1,0 +1,3 @@
+Placa,Nº Carga,Nº Pedido,Cód. Cliente,Nome Cliente,Grupo Cliente,Endereço de Entrega,Bairro de Entrega,Cidade de Entrega,Qtde. dos Itens,Peso dos Itens
+ABC1234,1,1001,2001,Cliente A,Grupo 1,Rua A,Bairro A,Cidade A,10,100
+DEF5678,2,1002,2002,Cliente B,Grupo 2,Rua B,Bairro B,Cidade B,5,50
