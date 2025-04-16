@@ -16,11 +16,14 @@ def main():
             else:
                 frota_df = pd.read_excel(frota_file, engine="openpyxl")
             st.dataframe(frota_df)
+            # Permitir edição da planilha da frota
+            edited_frota_df = st.data_editor(frota_df, num_rows="dynamic")
             # Salvar no database local na pasta src/database
             os.makedirs(os.path.join("src", "database"), exist_ok=True)
             frota_db_path = os.path.join("src", "database", "database_frota.csv")
-            frota_df.to_csv(frota_db_path, index=False)
-            st.success(f"Frota salva no banco de dados local: {frota_db_path}")
+            if st.button("Salvar Frota Editada"):
+                edited_frota_df.to_csv(frota_db_path, index=False)
+                st.success(f"Frota editada salva no banco de dados local: {frota_db_path}")
 
     elif menu == "Dashboard Pedidos":
         st.header("Dashboard de Pedidos")
@@ -36,23 +39,31 @@ def main():
             pedidos_db_path = os.path.join("src", "database", "database_pedidos.csv")
             pedidos_df.to_csv(pedidos_db_path, index=False)
             st.success(f"Pedidos salvos no banco de dados local: {pedidos_db_path}")
-            # Previsualização de mapa
-            from streamlit_folium import folium_static
-            import folium
-            local_partida = [-23.0838, -47.1336]  # Coordenadas fixas de partida
-            if 'Latitude' in pedidos_df.columns and 'Longitude' in pedidos_df.columns and not pedidos_df.empty:
-                m = folium.Map(location=[pedidos_df['Latitude'].mean(), pedidos_df['Longitude'].mean()], zoom_start=10)
-                for _, row in pedidos_df.iterrows():
-                    folium.Marker([row['Latitude'], row['Longitude']], popup=row.get('Nome Cliente', '')).add_to(m)
-                folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-                st.subheader("Mapa dos Pedidos")
-                folium_static(m)
+            df_map = pedidos_df
+        else:
+            # Tenta carregar o último database salvo
+            pedidos_db_path = os.path.join("src", "database", "database_pedidos.csv")
+            if os.path.exists(pedidos_db_path):
+                df_map = pd.read_csv(pedidos_db_path)
             else:
-                m = folium.Map(location=local_partida, zoom_start=10)
-                folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-                st.subheader("Mapa dos Pedidos")
-                folium_static(m)
-                st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir os pedidos no mapa.")
+                df_map = pd.DataFrame()
+        # Previsualização de mapa sempre ativa
+        from streamlit_folium import folium_static
+        import folium
+        local_partida = [-23.0838, -47.1336]  # Coordenadas fixas de partida
+        if not df_map.empty and 'Latitude' in df_map.columns and 'Longitude' in df_map.columns:
+            m = folium.Map(location=[df_map['Latitude'].mean(), df_map['Longitude'].mean()], zoom_start=10)
+            for _, row in df_map.iterrows():
+                folium.Marker([row['Latitude'], row['Longitude']], popup=row.get('Nome Cliente', '')).add_to(m)
+            folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
+            st.subheader("Mapa dos Pedidos")
+            folium_static(m)
+        else:
+            m = folium.Map(location=local_partida, zoom_start=10)
+            folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
+            st.subheader("Mapa dos Pedidos")
+            folium_static(m)
+            st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir os pedidos no mapa.")
 
     elif menu == "Dashboard IA":
         st.header("Dashboard IA - Base de Roteirizações")
@@ -68,17 +79,30 @@ def main():
             ia_db_path = os.path.join("src", "database", "database_ia.csv")
             ia_df.to_csv(ia_db_path, index=False)
             st.success(f"Base IA salva no banco de dados local: {ia_db_path}")
-            # Previsualização de mapa
-            if 'Latitude' in ia_df.columns and 'Longitude' in ia_df.columns:
-                from streamlit_folium import folium_static
-                import folium
-                m = folium.Map(location=[ia_df['Latitude'].mean(), ia_df['Longitude'].mean()], zoom_start=10)
-                for _, row in ia_df.iterrows():
-                    folium.Marker([row['Latitude'], row['Longitude']], popup=row.get('Nome Cliente', '')).add_to(m)
-                st.subheader("Mapa dos Pedidos Roteirizados")
-                folium_static(m)
+            df_map = ia_df
+        else:
+            ia_db_path = os.path.join("src", "database", "database_ia.csv")
+            if os.path.exists(ia_db_path):
+                df_map = pd.read_csv(ia_db_path)
             else:
-                st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir o mapa.")
+                df_map = pd.DataFrame()
+        # Previsualização de mapa sempre ativa
+        from streamlit_folium import folium_static
+        import folium
+        local_partida = [-23.0838, -47.1336]
+        if not df_map.empty and 'Latitude' in df_map.columns and 'Longitude' in df_map.columns:
+            m = folium.Map(location=[df_map['Latitude'].mean(), df_map['Longitude'].mean()], zoom_start=10)
+            for _, row in df_map.iterrows():
+                folium.Marker([row['Latitude'], row['Longitude']], popup=row.get('Nome Cliente', '')).add_to(m)
+            folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
+            st.subheader("Mapa dos Pedidos Roteirizados")
+            folium_static(m)
+        else:
+            m = folium.Map(location=local_partida, zoom_start=10)
+            folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
+            st.subheader("Mapa dos Pedidos Roteirizados")
+            folium_static(m)
+            st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir o mapa.")
 
 if __name__ == "__main__":
     main()
