@@ -1,43 +1,36 @@
 import streamlit as st
 import pandas as pd
 import os
-from streamlit_folium import folium_static
-import folium
+from routing import resolver_vrp
 
 def dashboard_routing():
-    st.header("Dashboard Routing - Roteirização de Pedidos")
-    # Carregar pedidos e frota do banco de dados local
-    pedidos_db_path = os.path.join("src", "database", "database_pedidos.csv")
-    frota_db_path = os.path.join("src", "database", "database_frota.csv")
-    if os.path.exists(pedidos_db_path):
-        pedidos_df = pd.read_csv(pedidos_db_path)
-    else:
-        pedidos_df = pd.DataFrame()
-    if os.path.exists(frota_db_path):
-        frota_df = pd.read_csv(frota_db_path)
-    else:
-        frota_df = pd.DataFrame()
-    # Exibir dados carregados
-    st.subheader("Pedidos para Roteirizar")
-    st.dataframe(pedidos_df)
-    st.subheader("Frota Disponível")
-    st.dataframe(frota_df)
-    # Previsualização de mapa sempre ativa
-    local_partida = [-23.0838, -47.1336]  # Coordenadas fixas de partida
-    if not pedidos_df.empty and 'Latitude' in pedidos_df.columns and 'Longitude' in pedidos_df.columns:
-        st.subheader("Mapa dos Pedidos para Roteirizar")
-        m = folium.Map(location=[pedidos_df['Latitude'].mean(), pedidos_df['Longitude'].mean()], zoom_start=10)
-        for _, row in pedidos_df.iterrows():
-            folium.Marker([row['Latitude'], row['Longitude']], popup=row.get('Nome Cliente', '')).add_to(m)
-        folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-        folium_static(m, width=1200, height=500)
-    else:
-        st.subheader("Mapa dos Pedidos para Roteirizar")
-        m = folium.Map(location=local_partida, zoom_start=10)
-        folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-        folium_static(m, width=1200, height=500)
-        st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir os pedidos no mapa.")
-    # Botão para iniciar roteirização (placeholder)
-    if st.button("Roteirizar Pedidos"):
-        st.info("Função de roteirização a ser implementada aqui!")
-        # Aqui você pode chamar o algoritmo de roteirização e exibir resultados
+    st.header("Dashboard de Roteirização de Pedidos")
+
+    # Carregar pedidos e frota
+    pedidos_db_path = "src/database/database_pedidos.csv"
+    frota_db_path = "src/database/database_frota.csv"
+
+    if not (os.path.exists(pedidos_db_path) and os.path.exists(frota_db_path)):
+        st.error("Certifique-se de que os dados de pedidos e frota estão disponíveis.")
+        return
+
+    pedidos_df = pd.read_csv(pedidos_db_path)
+    frota_df = pd.read_csv(frota_db_path)
+
+    if pedidos_df.empty or frota_df.empty:
+        st.error("Os dados de pedidos ou frota estão vazios.")
+        return
+
+    # Resolver o problema de roteirização
+    try:
+        rotas = resolver_vrp(pedidos_df, frota_df)
+        st.success("Roteirização concluída com sucesso!")
+
+        # Exibir rotas
+        for veiculo_id, rota in enumerate(rotas):
+            st.subheader(f"Rota para Veículo {veiculo_id + 1}")
+            rota_enderecos = [pedidos_df.iloc[node]['Endereço de Entrega'] for node in rota]
+            st.write(" -> ".join(rota_enderecos))
+
+    except Exception as e:
+        st.error(f"Erro ao realizar a roteirização: {e}")
