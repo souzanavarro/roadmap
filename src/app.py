@@ -52,17 +52,17 @@ def main():
         import folium
         local_partida = [-23.0838, -47.1336]  # Coordenadas fixas de partida
         if not df_map.empty and 'Latitude' in df_map.columns and 'Longitude' in df_map.columns:
+            st.subheader("Mapa dos Pedidos")
             m = folium.Map(location=[df_map['Latitude'].mean(), df_map['Longitude'].mean()], zoom_start=10)
             for _, row in df_map.iterrows():
                 folium.Marker([row['Latitude'], row['Longitude']], popup=row.get('Nome Cliente', '')).add_to(m)
             folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-            st.subheader("Mapa dos Pedidos")
-            folium_static(m)
+            folium_static(m, width=1200, height=500)
         else:
+            st.subheader("Mapa dos Pedidos")
             m = folium.Map(location=local_partida, zoom_start=10)
             folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-            st.subheader("Mapa dos Pedidos")
-            folium_static(m)
+            folium_static(m, width=1200, height=500)
             st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir os pedidos no mapa.")
 
     elif menu == "Dashboard IA":
@@ -91,17 +91,17 @@ def main():
         import folium
         local_partida = [-23.0838, -47.1336]
         if not df_map.empty and 'Latitude' in df_map.columns and 'Longitude' in df_map.columns:
+            st.subheader("Mapa dos Pedidos Roteirizados")
             m = folium.Map(location=[df_map['Latitude'].mean(), df_map['Longitude'].mean()], zoom_start=10)
             for _, row in df_map.iterrows():
                 folium.Marker([row['Latitude'], row['Longitude']], popup=row.get('Nome Cliente', '')).add_to(m)
             folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-            st.subheader("Mapa dos Pedidos Roteirizados")
-            folium_static(m)
+            folium_static(m, width=1200, height=500)
         else:
+            st.subheader("Mapa dos Pedidos Roteirizados")
             m = folium.Map(location=local_partida, zoom_start=10)
             folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-            st.subheader("Mapa dos Pedidos Roteirizados")
-            folium_static(m)
+            folium_static(m, width=1200, height=500)
             st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir o mapa.")
 
 if __name__ == "__main__":
