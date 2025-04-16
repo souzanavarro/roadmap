@@ -15,6 +15,13 @@ def main():
                 frota_df = pd.read_csv(frota_file)
             else:
                 frota_df = pd.read_excel(frota_file, engine="openpyxl")
+            # Remover placas indesejadas
+            placas_excluir = [
+                "FLB1111", "FLB2222", "FLB3333", "FLB4444", "FLB5555",
+                "FLB6666", "FLB7777", "FLB8888", "FLB9999", "HFU1B60", "CYN1819"
+            ]
+            if 'Placa' in frota_df.columns:
+                frota_df = frota_df[~frota_df['Placa'].isin(placas_excluir)]
             st.dataframe(frota_df)
             # Permitir edição da planilha da frota
             edited_frota_df = st.data_editor(frota_df, num_rows="dynamic")
@@ -28,6 +35,15 @@ def main():
     elif menu == "Dashboard Pedidos":
         st.header("Dashboard de Pedidos")
         pedidos_file = st.file_uploader("Envie a planilha de pedidos (CSV, XLSX, XLSM)", type=["csv", "xlsx", "xlsm"], key="pedidos")
+        # Carregar frota disponível
+        frota_db_path = os.path.join("src", "database", "database_frota.csv")
+        frota_disponivel = None
+        if os.path.exists(frota_db_path):
+            frota_disponivel = pd.read_csv(frota_db_path)
+            if 'Disponível' in frota_disponivel.columns:
+                frota_disponivel = frota_disponivel[frota_disponivel['Disponível'].str.lower() == 'sim']
+        else:
+            st.warning("Nenhuma frota cadastrada. Cadastre a frota antes de roterizar pedidos.")
         if pedidos_file:
             if pedidos_file.name.endswith(".csv"):
                 pedidos_df = pd.read_csv(pedidos_file)
@@ -40,6 +56,11 @@ def main():
             pedidos_df.to_csv(pedidos_db_path, index=False)
             st.success(f"Pedidos salvos no banco de dados local: {pedidos_db_path}")
             df_map = pedidos_df
+            # Checagem de frota disponível
+            if frota_disponivel is not None and frota_disponivel.empty:
+                st.error("Não há veículos disponíveis na frota para roterização!")
+            elif frota_disponivel is None:
+                st.warning("Não foi possível verificar a disponibilidade da frota.")
         else:
             # Tenta carregar o último database salvo
             pedidos_db_path = os.path.join("src", "database", "database_pedidos.csv")
