@@ -36,7 +36,14 @@ def dashboard_pedidos():
                 if endereco in coordenadas_salvas:
                     lat, lon = coordenadas_salvas[endereco]
                 else:
-                    lat, lon = obter_coordenadas_com_fallback(endereco, coordenadas_salvas, api_key)
+                    try:
+                        lat, lon = obter_coordenadas_com_fallback(endereco, coordenadas_salvas, api_key)
+                        # Trata caso a API não retorne resultado
+                        if lat is None or lon is None:
+                            st.warning(f"Não foi possível obter coordenadas para: {endereco}")
+                    except Exception as e:
+                        st.warning(f"Erro ao tentar obter as coordenadas para '{endereco}': {e}")
+                        lat, lon = None, None
                 return pd.Series({'Latitude': lat, 'Longitude': lon})
             coords = pedidos_df.apply(get_coords, axis=1)
             pedidos_df['Latitude'] = coords['Latitude']
