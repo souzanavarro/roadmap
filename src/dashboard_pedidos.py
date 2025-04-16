@@ -26,7 +26,7 @@ def dashboard_pedidos():
             coordenadas_salvas = {}
             # Carregar coordenadas já salvas
             coord_db_path = os.path.join("src", "database", "database_coordernadas.csv")
-            if os.path.exists(coord_db_path):
+            if os.path.exists(coord_db_path) and os.path.getsize(coord_db_path) > 0:
                 coord_db = pd.read_csv(coord_db_path)
                 for _, row in coord_db.iterrows():
                     coordenadas_salvas[row['Endereço']] = (row['Latitude'], row['Longitude'])
