@@ -85,8 +85,11 @@ def dashboard_pedidos():
     local_partida = [-23.0838, -47.1336]  # Coordenadas fixas de partida
     if not df_map.empty and 'Latitude' in df_map.columns and 'Longitude' in df_map.columns:
         st.subheader("Mapa dos Pedidos")
-        m = folium.Map(location=[df_map['Latitude'].mean(), df_map['Longitude'].mean()], zoom_start=10)
-        for _, row in df_map.iterrows():
+        # Filtra apenas linhas com coordenadas válidas
+        df_map_valid = df_map.dropna(subset=['Latitude', 'Longitude'])
+        m = folium.Map(location=[df_map_valid['Latitude'].mean() if not df_map_valid.empty else local_partida[0],
+                                 df_map_valid['Longitude'].mean() if not df_map_valid.empty else local_partida[1]], zoom_start=10)
+        for _, row in df_map_valid.iterrows():
             folium.Marker([row['Latitude'], row['Longitude']], popup=row.get('Nome Cliente', '')).add_to(m)
         folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
         folium_static(m, width=1200, height=500)
