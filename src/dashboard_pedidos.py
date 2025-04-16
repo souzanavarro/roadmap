@@ -31,6 +31,7 @@ def dashboard_pedidos():
                 for _, row in coord_db.iterrows():
                     coordenadas_salvas[row['Endereço']] = (row['Latitude'], row['Longitude'])
             api_key = "6f522c67add14152926990afbe127384"
+            # Priorizar Nominatim e usar OpenCage como fallback
             def get_coords(row):
                 endereco = f"{row['Endereço de Entrega']}, {row['Bairro de Entrega']}, {row['Cidade de Entrega']}"
                 if endereco in coordenadas_salvas:
@@ -40,8 +41,8 @@ def dashboard_pedidos():
                         lat, lon = obter_coordenadas_com_fallback(endereco, coordenadas_salvas, api_key)
                         # Trata caso a API não retorne resultado
                         if lat is None or lon is None:
-                            st.warning(f"Não foi possível obter coordenadas para: {endereco}. Usando coordenadas de partida.")
-                            lat, lon = -23.0838, -47.1336  # Coordenadas de partida
+                            st.warning(f"Não foi possível obter coordenadas para: {endereco}. Deixando valores como nulos.")
+                            lat, lon = None, None
                     except Exception as e:
                         st.warning(f"Erro ao tentar obter as coordenadas para '{endereco}': {e}. Usando coordenadas de partida.")
                         lat, lon = -23.0838, -47.1336  # Coordenadas de partida

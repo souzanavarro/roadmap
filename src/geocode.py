@@ -24,15 +24,37 @@ def obter_coordenadas_opencage(endereco, api_key):
         st.error(f"Erro ao tentar obter as coordenadas: {e}")
         return None
 
+def obter_coordenadas_nominatim(endereco):
+    try:
+        geolocator = Nominatim(user_agent="delivery_router")
+        location = geolocator.geocode(endereco)
+        if location:
+            return location.latitude, location.longitude
+        else:
+            st.error(f"Não foi possível obter as coordenadas para o endereço: {endereco} usando Nominatim.")
+            return None, None
+    except Exception as e:
+        st.error(f"Erro ao tentar obter as coordenadas com Nominatim: {e}")
+        return None, None
+
 def obter_coordenadas_com_fallback(endereco, coordenadas_salvas, api_key):
     if endereco in coordenadas_salvas:
         return coordenadas_salvas[endereco]
-    coords = obter_coordenadas_opencage(endereco, api_key)
-    if coords is None:
+
+    # Tentar primeiro com Nominatim
+    coords = obter_coordenadas_nominatim(endereco)
+
+    # Se Nominatim falhar, tentar com OpenCage
+    if coords is None or coords == (None, None):
+        coords = obter_coordenadas_opencage(endereco, api_key)
+
+    # Se ambos falharem, usar coordenadas manuais
+    if coords is None or coords == (None, None):
         coordenadas_manuais = {
             "Rua Araújo Leite, 146, Centro, Piedade, São Paulo, Brasil": (-23.71241093449893, -47.41796911054548)
         }
         coords = coordenadas_manuais.get(endereco, (None, None))
-    if coords:
+
+    if coords and coords != (None, None):
         coordenadas_salvas[endereco] = coords
     return coords
