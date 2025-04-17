@@ -10,6 +10,11 @@ def dashboard_frota():
         frota_df = pd.read_csv(frota_db_path)
     else:
         frota_df = pd.DataFrame()
+    # Verificar se as colunas obrigatórias estão presentes
+    colunas_obrigatorias = ['Placa', 'Transportador', 'Descrição Veículo', 'Capac. Cx', 'Capac. Kg', 'Disponível']
+    if not all(col in frota_df.columns for col in colunas_obrigatorias):
+        st.error(f"A planilha da frota está faltando as seguintes colunas obrigatórias: {', '.join([col for col in colunas_obrigatorias if col not in frota_df.columns])}")
+        return
     frota_file = st.file_uploader("Envie a planilha da frota (CSV, XLSX, XLSM)", type=["csv", "xlsx", "xlsm"], key="frota")
     if frota_file:
         if frota_file.name.endswith(".csv"):
