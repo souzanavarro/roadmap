@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from routing import resolver_vrp
+from routing import resolver_vrp, alocacao_prioridade_capacidade_regiao
 
 def tratar_erro(msg, exception=None):
     import streamlit as st
@@ -55,7 +55,7 @@ def dashboard_routing():
             janela_inicio = st.time_input('Início da janela de entrega', value=None)
             janela_fim = st.time_input('Fim da janela de entrega', value=None)
         tipo_otimizacao = st.selectbox('Tipo de otimização', ['Menor distância', 'Menor tempo'])
-        prioridade_alocacao = st.selectbox('Prioridade de alocação', ['Capacidade', 'Região', 'Tipo de carga'])
+        prioridade_alocacao = st.selectbox('Prioridade de alocação', ['Capacidade', 'Região', 'Capacidade + Região', 'Tipo de carga'])
 
     # Carregar pedidos e frota
     pedidos_db_path = "src/database/database_pedidos.csv"
@@ -98,8 +98,14 @@ def dashboard_routing():
     if st.button("Roteirizar Pedidos", type="primary"):
         try:
             if usar_vrp:
-                rotas = resolver_vrp(pedidos_df, frota_df, capacidade_max=capacidade_max)
-                st.success("Roteirização VRP concluída e salva no histórico!")
+                if prioridade_alocacao == 'Capacidade + Região':
+                    pedidos_alocados_df = alocacao_prioridade_capacidade_regiao(pedidos_df, frota_df, n_clusters=5)
+                    st.success("Alocação por Capacidade + Região concluída! Veja a tabela abaixo.")
+                    st.dataframe(pedidos_alocados_df, use_container_width=True)
+                    return
+                else:
+                    rotas = resolver_vrp(pedidos_df, frota_df, capacidade_max=capacidade_max)
+                    st.success("Roteirização VRP concluída e salva no histórico!")
             elif usar_tsp:
                 from routing import tsp_nearest_neighbor
                 partida_coords = (-23.0838, -47.1336)

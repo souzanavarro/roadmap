@@ -309,6 +309,53 @@ def resolver_vrp(pedidos_df, frota_df, capacidade_max=None):
             rotas.append(rota)
     return rotas
 
+def resolver_vrp(pedidos_df, frota_df, percentual_utilizacao=100):
+    """
+    VRP com OR-Tools para múltiplos veículos, considerando a capacidade individual de cada veículo
+    e um percentual de utilização definido pelo usuário.
+    percentual_utilizacao: valor entre 0 e 100 (ex: 80 para usar até 80% da capacidade de cada veículo)
+    """
+    coords = [(row['Latitude'], row['Longitude']) for _, row in pedidos_df.iterrows()]
+    n = len(coords)
+    num_veiculos = len(frota_df)
+    matriz = [[geodesic(coords[i], coords[j]).meters for j in range(n)] for i in range(n)]
+    manager = pywrapcp.RoutingIndexManager(n, num_veiculos, 0)
+    routing = pywrapcp.RoutingModel(manager)
+    def dist_callback(from_idx, to_idx):
+        return int(matriz[manager.IndexToNode(from_idx)][manager.IndexToNode(to_idx)])
+    transit_callback_index = routing.RegisterTransitCallback(dist_callback)
+    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+
+    # Restrição de capacidade individual por veículo com percentual
+    if 'Peso dos Itens' in pedidos_df.columns and 'Capac. Kg' in frota_df.columns:
+        demands = [int(p) for p in pedidos_df['Peso dos Itens']]
+        def demand_callback(from_index):
+            node = manager.IndexToNode(from_index)
+            return demands[node]
+        demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
+        capacidades = [int(c * percentual_utilizacao / 100) for c in frota_df['Capac. Kg']]
+        routing.AddDimensionWithVehicleCapacity(
+            demand_callback_index,
+            0,  # sem capacidade extra
+            capacidades,  # capacidade individual ajustada por %
+            True,  # start cumul to zero
+            'Capacity')
+
+    search_params = pywrapcp.DefaultRoutingSearchParameters()
+    search_params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+    solution = routing.SolveWithParameters(search_params)
+    rotas = []
+    if solution:
+        for v in range(num_veiculos):
+            idx = routing.Start(v)
+            rota = []
+            while not routing.IsEnd(idx):
+                node = manager.IndexToNode(idx)
+                rota.append(node)
+                idx = solution.Value(routing.NextVar(idx))
+            rotas.append(rota)
+    return rotas
+
 def agrupar_por_regiao(pedidos_df, n_clusters):
     """
     Agrupa pedidos por proximidade geográfica usando KMeans.
@@ -533,4 +580,50 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
     st.dataframe(resumo_frota_df, use_container_width=True)
     if pedidos_nao_alocados:
         st.warning(f"{len(pedidos_nao_alocados)} pedidos não foram alocados. Considere aumentar a frota ou dividir a entrega em mais dias.")
+    return pedidos_df
+
+def alocacao_prioridade_capacidade_regiao(pedidos_df, frota_df, n_clusters=5):
+    """
+    Aloca pedidos considerando simultaneamente a capacidade dos veículos e a região (cluster).
+    1. Agrupa pedidos por região (KMeans).
+    2. Para cada região, aloca pedidos nos veículos disponíveis, respeitando a capacidade individual de cada veículo.
+    3. Tenta preencher cada veículo ao máximo dentro da sua região antes de passar para outra região.
+    Retorna o DataFrame de pedidos com colunas 'Veiculo', 'Placa', 'Regiao', 'Status Alocacao'.
+    """
+    import numpy as np
+    from sklearn.cluster import KMeans
+    pedidos_df = pedidos_df.copy()
+    frota_df = frota_df.copy()
+    pedidos_df = pedidos_df.dropna(subset=['Latitude', 'Longitude', 'Peso dos Itens'])
+    pedidos_df = pedidos_df[pedidos_df['Peso dos Itens'] > 0]
+    frota_df = frota_df[frota_df['Capac. Kg'] > 0]
+    pedidos_df['Regiao'] = KMeans(n_clusters=n_clusters, random_state=42).fit_predict(pedidos_df[['Latitude', 'Longitude']])
+    pedidos_df['Veiculo'] = None
+    pedidos_df['Placa'] = None
+    pedidos_df['Status Alocacao'] = 'Não Alocado'
+    frota_df = frota_df.sort_values('Capac. Kg', ascending=False).reset_index(drop=True)
+    veiculo_global = 1
+    for regiao in pedidos_df['Regiao'].unique():
+        pedidos_regiao = pedidos_df[pedidos_df['Regiao'] == regiao].copy()
+        pedidos_regiao = pedidos_regiao.sort_values('Peso dos Itens', ascending=False)
+        idx_pedido = 0
+        frota_disp = frota_df.copy()
+        for veiculo_idx, veiculo in frota_disp.iterrows():
+            capacidade_kg = veiculo['Capac. Kg']
+            capacidade_cx = veiculo['Capac. Cx'] if 'Capac. Cx' in veiculo else np.inf
+            peso_usado = 0
+            cx_usado = 0
+            while idx_pedido < len(pedidos_regiao):
+                pedido = pedidos_regiao.iloc[idx_pedido]
+                if (peso_usado + pedido['Peso dos Itens'] <= capacidade_kg) and (cx_usado + pedido.get('Qtde. dos Itens', 0) <= capacidade_cx):
+                    pedidos_df_idx = pedidos_regiao.index[idx_pedido]
+                    pedidos_df.at[pedidos_df_idx, 'Veiculo'] = veiculo_global
+                    pedidos_df.at[pedidos_df_idx, 'Placa'] = veiculo['Placa']
+                    pedidos_df.at[pedidos_df_idx, 'Status Alocacao'] = 'Alocado'
+                    peso_usado += pedido['Peso dos Itens']
+                    cx_usado += pedido.get('Qtde. dos Itens', 0)
+                    idx_pedido += 1
+                else:
+                    break
+            veiculo_global += 1
     return pedidos_df
