@@ -6,11 +6,15 @@ from routing import resolver_vrp
 def dashboard_routing():
     st.header("Dashboard de Roteirização de Pedidos")
 
-    # Opções de roteirização
+    # Opções de roteirização (radio button)
     st.subheader("Opções de Roteirização")
-    usar_vrp = st.checkbox("Roteirização por VRP (ótima para múltiplos veículos)", value=True)
-    usar_tsp = st.checkbox("Roteirização por TSP (ótima para um único veículo)")
-    # Adicione outras opções conforme necessário
+    tipo_roteirizacao = st.radio(
+        "Escolha o tipo de roteirização:",
+        options=["VRP (múltiplos veículos)", "TSP (um único veículo)"],
+        index=0
+    )
+    usar_vrp = tipo_roteirizacao.startswith("VRP")
+    usar_tsp = tipo_roteirizacao.startswith("TSP")
 
     # Carregar pedidos e frota
     pedidos_db_path = "src/database/database_pedidos.csv"
@@ -36,6 +40,7 @@ def dashboard_routing():
         return
 
     # Resolver o problema de roteirização conforme a opção escolhida
+    rotas = None  # Inicializa rotas
     try:
         if usar_vrp:
             rotas = resolver_vrp(pedidos_df, frota_df)
@@ -45,7 +50,7 @@ def dashboard_routing():
         else:
             st.warning("Selecione uma opção de roteirização.")
 
-        # Filtro para selecionar o veículo
+        # Só mostra filtros e mapas se rotas foi definida
         if rotas:
             veiculos_opcoes = [f"Veículo {i+1} - Placa: {frota_df.iloc[i % len(frota_df)]['Placa']}" for i in range(len(rotas))]
             veiculo_idx = st.selectbox("Selecione o veículo para visualizar a rota:", options=list(range(len(rotas))), format_func=lambda i: veiculos_opcoes[i])
