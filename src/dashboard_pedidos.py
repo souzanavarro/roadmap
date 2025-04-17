@@ -160,26 +160,7 @@ def dashboard_pedidos():
     from streamlit_folium import folium_static
     import folium
     local_partida = [-23.0838, -47.1336]  # Coordenadas fixas de partida
-    st.markdown("""
-    <style>
-    #dashboard-pedidos-mapa .map-box {
-        background: linear-gradient(90deg, #e8f5e9 0%, #c8e6c9 100%);
-        border-radius: 12px;
-        padding: 1.5em 2em;
-        margin-bottom: 2em;
-        box-shadow: 0 2px 8px rgba(67,160,71,0.08);
-    }
-    #dashboard-pedidos-mapa .map-title {
-        font-size: 1.5em;
-        font-weight: bold;
-        color: #388e3c;
-        margin-bottom: 0.7em;
-    }
-    </style>
-    <div id='dashboard-pedidos-mapa'>
-      <div class='map-box'>
-        <div class='map-title'>Mapa dos Pedidos</div>
-    """, unsafe_allow_html=True)
+    # Remover o visual customizado do mapa dos pedidos
     if not df_map.empty and 'Latitude' in df_map.columns and 'Longitude' in df_map.columns:
         df_map_valid = df_map.dropna(subset=['Latitude', 'Longitude'])
         m = folium.Map(location=[df_map_valid['Latitude'].mean() if not df_map_valid.empty else local_partida[0],
