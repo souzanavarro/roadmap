@@ -488,10 +488,10 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
     if pedidos_df.empty or frota_df.empty:
         st.error("Pedidos ou frota vazios!")
         return pedidos_df
-    if 'Peso dos Itens' not in pedidos_df.columns ou 'Qtde. dos Itens' not in pedidos_df.columns:
+    if 'Peso dos Itens' not in pedidos_df.columns or 'Qtde. dos Itens' not in pedidos_df.columns:
         st.error("Pedidos precisam ter as colunas 'Peso dos Itens' e 'Qtde. dos Itens'.")
         return pedidos_df
-    if 'Capac. Kg' not in frota_df.columns ou 'Capac. Cx' not in frota_df.columns:
+    if 'Capac. Kg' not in frota_df.columns or 'Capac. Cx' not in frota_df.columns:
         st.error("Frota precisa ter as colunas 'Capac. Kg' e 'Capac. Cx'.")
         return pedidos_df
     pedidos_df = pedidos_df.dropna(subset=['Latitude', 'Longitude', 'Peso dos Itens', 'Qtde. dos Itens'])
