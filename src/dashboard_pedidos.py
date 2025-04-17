@@ -19,6 +19,27 @@ st.markdown("""
     margin-bottom: 1.5em;
     box-shadow: 0 2px 8px rgba(67,160,71,0.08);
 }
+.loading-coords {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    font-size: 1.2em;
+    color: #388e3c;
+    font-weight: bold;
+    margin-bottom: 1em;
+}
+.loading-spinner {
+    border: 4px solid #c8e6c9;
+    border-top: 4px solid #43a047;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
 </style>
 <div class='pedidos-box'>
     <div class='pedidos-title'>Gestão de Pedidos</div>
@@ -45,7 +66,12 @@ def dashboard_pedidos():
             pedidos_df = pd.read_excel(pedidos_file, engine="openpyxl")
         # Obter coordenadas se não existirem
         if 'Latitude' not in pedidos_df.columns or 'Longitude' not in pedidos_df.columns or pedidos_df['Latitude'].isnull().any() or pedidos_df['Longitude'].isnull().any():
-            st.info("Obtendo coordenadas para os endereços...")
+            st.markdown("""
+            <div class='loading-coords'>
+                <div class='loading-spinner'></div>
+                Obtendo coordenadas para os endereços...
+            </div>
+            """, unsafe_allow_html=True)
             coordenadas_salvas = {}
             # Carregar coordenadas já salvas
             coord_db_path = os.path.join("src", "database", "database_coordernadas.csv")
@@ -89,6 +115,9 @@ def dashboard_pedidos():
                 coord_db = pd.read_csv(coord_db_path)
                 coord_df = pd.concat([coord_db, coord_df]).drop_duplicates(subset=['Endereço'], keep='last')
             coord_df.to_csv(coord_db_path, index=False)
+            st.success("Coordenadas obtidas com sucesso!")
+            if st.button("Ir para Roteirização", type="primary"):
+                st.switch_page("src/dashboard_routing.py")
         st.dataframe(pedidos_df)
         # Salvar no database local na pasta src/database
         os.makedirs(os.path.join("src", "database"), exist_ok=True)
