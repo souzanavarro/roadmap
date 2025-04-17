@@ -404,7 +404,7 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
     pedidos_df = pedidos_df.dropna(subset=['Latitude', 'Longitude', 'Peso dos Itens', 'Qtde. dos Itens'])
     pedidos_df = pedidos_df[(pedidos_df['Peso dos Itens'] > 0) & (pedidos_df['Qtde. dos Itens'] > 0)]
     frota_df = frota_df[(frota_df['Capac. Kg'] > 0) & (frota_df['Capac. Cx'] > 0)]
-    if pedidos_df.empty ou frota_df.empty:
+    if pedidos_df.empty or frota_df.empty:
         st.error("Pedidos ou frota sem dados válidos!")
         return pedidos_df
     # Agrupamento por região
@@ -431,13 +431,13 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
         veiculos_necessarios = []
         peso_restante = peso_total
         cx_restante = cx_total
-        while (peso_restante > 0 ou cx_restante > 0) and not frota_disp.empty:
+        while (peso_restante > 0 or cx_restante > 0) and not frota_disp.empty:
             veiculo = frota_disp.iloc[0]
             veiculos_necessarios.append(veiculo)
             peso_restante -= veiculo['Capac. Kg']
             cx_restante -= veiculo['Capac. Cx']
             frota_disp = frota_disp.iloc[1:]
-        if peso_restante > 0 ou cx_restante > 0:
+        if peso_restante > 0 or cx_restante > 0:
             st.warning(f"Região {regiao} excede a capacidade da frota disponível! Alguns pedidos podem ficar sem alocação.")
         # Distribuição de pedidos entre veículos
         pedidos_regiao = pedidos_regiao.sort_values(['Prioridade', 'Peso dos Itens'], ascending=[True, False])
