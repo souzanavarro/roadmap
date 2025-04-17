@@ -1,0 +1,3 @@
+2025-04-17 12:31:16.436459 - Erro ao realizar a roteirização. Verifique os dados e tente novamente. - list index out of range
+2025-04-17 12:31:20.182097 - Erro ao realizar a roteirização. Verifique os dados e tente novamente. - list index out of range
+2025-04-17 12:31:39.453785 - Erro ao realizar a roteirização. Verifique os dados e tente novamente. - list index out of range

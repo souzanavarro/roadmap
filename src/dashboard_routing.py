@@ -62,6 +62,15 @@ def dashboard_routing():
         st.error("Os dados de pedidos ou frota estão vazios.")
         return
 
+    if os.path.exists(frota_db_path):
+        frota_df = pd.read_csv(frota_db_path)
+        if 'Disponível' in frota_df.columns:
+            frota_disponivel = frota_df[frota_df['Disponível'].str.lower() == 'sim']
+            total_disponivel = len(frota_disponivel)
+            st.info(f"🚚 Veículos disponíveis para roteirização: {total_disponivel}")
+        else:
+            st.info(f"🚚 Veículos cadastrados: {len(frota_df)}")
+
     # Filtrar pedidos com coordenadas válidas
     pedidos_df = pedidos_df.dropna(subset=['Latitude', 'Longitude'])
     pedidos_df = pedidos_df[pedidos_df['Latitude'].apply(lambda x: pd.notnull(x) and x != '' and x != 0)]
@@ -99,6 +108,9 @@ def dashboard_routing():
         if rotas:
             # Filtrar apenas veículos com pedidos
             veiculos_com_pedidos = [i for i, rota in enumerate(rotas) if len(rota) > 0]
+            if not veiculos_com_pedidos:
+                st.warning("Nenhum veículo possui pedidos alocados nesta roteirização.")
+                return
             veiculos_opcoes = [f"Veículo {i+1} - Placa: {frota_df.iloc[i % len(frota_df)]['Placa']}" for i in veiculos_com_pedidos]
             veiculo_idx_map = {opcao: i for opcao, i in zip(veiculos_opcoes, veiculos_com_pedidos)}
             veiculo_selecionado = st.selectbox(
@@ -109,36 +121,39 @@ def dashboard_routing():
 
             # Exibir mini planilha do veículo selecionado
             st.subheader(f"Rota para {veiculos_opcoes[veiculo_idx]}")
-            pedidos_rota = pedidos_df.iloc[rotas[veiculo_idx]].copy()
-            pedidos_rota['Placa'] = frota_df.iloc[veiculo_idx % len(frota_df)]['Placa']
-            st.dataframe(pedidos_rota, use_container_width=True)
+            if len(rotas[veiculo_idx]) == 0:
+                st.info("Este veículo não possui pedidos alocados.")
+            else:
+                pedidos_rota = pedidos_df.iloc[rotas[veiculo_idx]].copy()
+                pedidos_rota['Placa'] = frota_df.iloc[veiculo_idx % len(frota_df)]['Placa']
+                st.dataframe(pedidos_rota, use_container_width=True)
 
-            # Exibir mapa da rota do veículo selecionado
-            from routing import criar_mapa_rotas
-            from streamlit_folium import folium_static
-            st.markdown("""
-            <style>
-            #dashboard-routing-mapa .map-box {
-                background: linear-gradient(90deg, #fff3e0 0%, #ffe0b2 100%);
-                border-radius: 12px;
-                padding: 1.5em 2em;
-                margin-bottom: 2em;
-                box-shadow: 0 2px 8px rgba(255,152,0,0.08);
-            }
-            #dashboard-routing-mapa .map-title {
-                font-size: 1.5em;
-                font-weight: bold;
-                color: #ff9800;
-                margin-bottom: 0.7em;
-            }
-            </style>
-            <div id='dashboard-routing-mapa'>
-              <div class='map-box'>
-                <div class='map-title'>Mapa da Roteirização</div>
-            """, unsafe_allow_html=True)
-            mapa = criar_mapa_rotas(pedidos_rota, rotas=[[i for i in range(len(pedidos_rota))]], partida_coords=(-23.0838, -47.1336))
-            folium_static(mapa, width=1200, height=500)
-            st.markdown("</div></div>", unsafe_allow_html=True)
+                # Exibir mapa da rota do veículo selecionado
+                from routing import criar_mapa_rotas
+                from streamlit_folium import folium_static
+                st.markdown("""
+                <style>
+                #dashboard-routing-mapa .map-box {
+                    background: linear-gradient(90deg, #fff3e0 0%, #ffe0b2 100%);
+                    border-radius: 12px;
+                    padding: 1.5em 2em;
+                    margin-bottom: 2em;
+                    box-shadow: 0 2px 8px rgba(255,152,0,0.08);
+                }
+                #dashboard-routing-mapa .map-title {
+                    font-size: 1.5em;
+                    font-weight: bold;
+                    color: #ff9800;
+                    margin-bottom: 0.7em;
+                }
+                </style>
+                <div id='dashboard-routing-mapa'>
+                  <div class='map-box'>
+                    <div class='map-title'>Mapa da Roteirização</div>
+                """, unsafe_allow_html=True)
+                mapa = criar_mapa_rotas(pedidos_rota, rotas=[[i for i in range(len(pedidos_rota))]], partida_coords=(-23.0838, -47.1336))
+                folium_static(mapa, width=1200, height=500)
+                st.markdown("</div></div>", unsafe_allow_html=True)
 
             # Salvar histórico de roteirizações
             from datetime import datetime
@@ -146,17 +161,19 @@ def dashboard_routing():
             historico = []
             data_roteirizacao = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             for veiculo_id, rota in enumerate(rotas):
+                if len(rota) == 0:
+                    continue
                 pedidos_rota = pedidos_df.iloc[rota].copy()
                 pedidos_rota['Placa'] = frota_df.iloc[veiculo_id % len(frota_df)]['Placa']
                 pedidos_rota['Veiculo'] = veiculo_id + 1
                 pedidos_rota['Data Roteirizacao'] = data_roteirizacao
                 historico.append(pedidos_rota)
-            historico_df = pd.concat(historico)
-            if os.path.exists(historico_path):
-                historico_antigo = pd.read_csv(historico_path)
-                historico_df = pd.concat([historico_antigo, historico_df], ignore_index=True)
-            historico_df.to_csv(historico_path, index=False)
-
+            if historico:
+                historico_df = pd.concat(historico)
+                if os.path.exists(historico_path):
+                    historico_antigo = pd.read_csv(historico_path)
+                    historico_df = pd.concat([historico_antigo, historico_df], ignore_index=True)
+                historico_df.to_csv(historico_path, index=False)
     except Exception as e:
         tratar_erro("Erro ao realizar a roteirização. Verifique os dados e tente novamente.", e)
 

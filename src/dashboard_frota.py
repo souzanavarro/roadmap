@@ -31,6 +31,12 @@ def dashboard_frota():
     # Carregar frota existente, se houver
     if os.path.exists(frota_db_path):
         frota_df = pd.read_csv(frota_db_path)
+        if 'Disponível' in frota_df.columns:
+            frota_disponivel = frota_df[frota_df['Disponível'].str.lower() == 'sim']
+            total_disponivel = len(frota_disponivel)
+            st.info(f"🚚 Veículos disponíveis: {total_disponivel}")
+        else:
+            st.info(f"🚚 Veículos cadastrados: {len(frota_df)}")
     else:
         frota_df = pd.DataFrame()
     # Verificar se as colunas obrigatórias estão presentes
