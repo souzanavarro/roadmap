@@ -54,6 +54,8 @@ def dashboard_routing():
             'Capacidade individual da frota (%)'
         ], index=0)
         if modo_capacidade == 'Capacidade máxima fixa (kg)':
+            capacidade_total_frota = int(frota_df['Capac. Kg'].sum()) if 'Capac. Kg' in frota_df.columns else 0
+            st.info(f'Capacidade total disponível na frota: {capacidade_total_frota} kg')
             capacidade_max = st.number_input('Capacidade máxima por veículo (kg)', min_value=1, value=1000)
             percentual_utilizacao = 100
         else:
