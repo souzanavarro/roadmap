@@ -84,6 +84,45 @@ def dashboard_routing():
         pedidos_df = pedidos_df.sort_values('Peso dos Itens', ascending=False)
         pedidos_df = pedidos_df.drop_duplicates(subset=['Cód. Cliente'], keep='first')
 
+    # Botão para executar a roteirização
+    if st.button("Roteirizar Pedidos", type="primary"):
+        try:
+            if usar_vrp:
+                rotas = resolver_vrp(pedidos_df, frota_df)
+                st.success("Roteirização VRP concluída e salva no histórico!")
+            elif usar_tsp:
+                st.info("Função TSP ainda não implementada neste dashboard.")
+            else:
+                st.warning("Selecione uma opção de roteirização.")
+
+            # Garantir que cada pedido seja alocado em apenas um veículo
+            pedidos_alocados = set()
+            rotas_unicas = []
+            for rota in rotas:
+                rota_unica = [idx for idx in rota if idx not in pedidos_alocados]
+                pedidos_alocados.update(rota_unica)
+                rotas_unicas.append(rota_unica)
+            rotas = rotas_unicas
+
+            # Salvar histórico de roteirizações
+            from datetime import datetime
+            historico_path = os.path.join("src", "database", "historico_roteirizacoes.csv")
+            historico = []
+            data_roteirizacao = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            for veiculo_id, rota in enumerate(rotas):
+                if len(rota) == 0:
+                    continue
+                pedidos_rota = pedidos_df.iloc[rota].copy()
+                pedidos_rota['Placa'] = frota_df.iloc[veiculo_id % len(frota_df)]['Placa']
+                pedidos_rota['Veiculo'] = veiculo_id + 1
+                pedidos_rota['Data Roteirizacao'] = data_roteirizacao
+                historico.append(pedidos_rota)
+            if historico:
+                historico_df = pd.concat(historico)
+                historico_df.to_csv(historico_path, index=False)
+        except Exception as e:
+            tratar_erro("Erro ao realizar a roteirização. Verifique os dados e tente novamente.", e)
+
     # Resolver o problema de roteirização conforme a opção escolhida
     rotas = None  # Inicializa rotas
     try:

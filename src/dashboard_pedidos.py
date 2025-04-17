@@ -138,6 +138,17 @@ def dashboard_pedidos():
             coord_df.to_csv(coord_db_path, index=False)
             st.success("Coordenadas obtidas com sucesso!")
         st.dataframe(pedidos_df)
+        # Botão para limpar e salvar novos dados
+        if st.button("Limpar e Salvar Novos Pedidos", type="primary"):
+            # Limpa o database_pedidos.csv
+            pedidos_db_path = os.path.join("src", "database", "database_pedidos.csv")
+            pedidos_df.to_csv(pedidos_db_path, index=False)
+            # Limpa o historico_roteirizacoes.csv
+            historico_path = os.path.join("src", "database", "historico_roteirizacoes.csv")
+            if os.path.exists(historico_path):
+                with open(historico_path, "w") as f:
+                    f.write("")
+            st.success("Pedidos atualizados e histórico de roteirizações limpo!")
         # Salvar no database local na pasta src/database
         os.makedirs(os.path.join("src", "database"), exist_ok=True)
         pedidos_db_path = os.path.join("src", "database", "database_pedidos.csv")
@@ -175,6 +186,3 @@ def dashboard_pedidos():
         folium_static(m, width=1200, height=500)
         st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir os pedidos no mapa.")
     st.markdown("</div></div>", unsafe_allow_html=True)
-    if st.button("Ir para Roteirização", type="primary"):
-        st.session_state["main_menu_radio"] = "Dashboard Routing"
-        st.experimental_rerun()
