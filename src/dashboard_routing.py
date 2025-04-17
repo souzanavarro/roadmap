@@ -97,8 +97,15 @@ def dashboard_routing():
 
         # Só mostra filtros e mapas se rotas foi definida
         if rotas:
-            veiculos_opcoes = [f"Veículo {i+1} - Placa: {frota_df.iloc[i % len(frota_df)]['Placa']}" for i in range(len(rotas))]
-            veiculo_idx = st.selectbox("Selecione o veículo para visualizar a rota:", options=list(range(len(rotas))), format_func=lambda i: veiculos_opcoes[i])
+            # Filtrar apenas veículos com pedidos
+            veiculos_com_pedidos = [i for i, rota in enumerate(rotas) if len(rota) > 0]
+            veiculos_opcoes = [f"Veículo {i+1} - Placa: {frota_df.iloc[i % len(frota_df)]['Placa']}" for i in veiculos_com_pedidos]
+            veiculo_idx_map = {opcao: i for opcao, i in zip(veiculos_opcoes, veiculos_com_pedidos)}
+            veiculo_selecionado = st.selectbox(
+                "Selecione o veículo para visualizar a rota:",
+                options=veiculos_opcoes
+            )
+            veiculo_idx = veiculo_idx_map[veiculo_selecionado]
 
             # Exibir mini planilha do veículo selecionado
             st.subheader(f"Rota para {veiculos_opcoes[veiculo_idx]}")
