@@ -47,6 +47,17 @@ def dashboard_routing():
     usar_vrp = tipo_roteirizacao.startswith("VRP")
     usar_tsp = tipo_roteirizacao.startswith("TSP")
 
+    # Carregar pedidos e frota
+    pedidos_db_path = "src/database/database_pedidos.csv"
+    frota_db_path = "src/database/database_frota.csv"
+
+    if not (os.path.exists(pedidos_db_path) and os.path.exists(frota_db_path)):
+        st.error("Certifique-se de que os dados de pedidos e frota estão disponíveis.")
+        return
+
+    pedidos_df = pd.read_csv(pedidos_db_path)
+    frota_df = pd.read_csv(frota_db_path)
+
     # Opções de restrições e parâmetros avançados
     with st.expander('Restrições e Parâmetros Avançados'):
         modo_capacidade = st.radio('Como considerar a capacidade dos veículos?', [
@@ -70,17 +81,6 @@ def dashboard_routing():
         n_clusters = 3  # valor padrão
         if 'Região' in prioridade_alocacao:
             n_clusters = st.slider('Quantidade de regiões (clusters)', min_value=1, max_value=5, value=3)
-
-    # Carregar pedidos e frota
-    pedidos_db_path = "src/database/database_pedidos.csv"
-    frota_db_path = "src/database/database_frota.csv"
-
-    if not (os.path.exists(pedidos_db_path) and os.path.exists(frota_db_path)):
-        st.error("Certifique-se de que os dados de pedidos e frota estão disponíveis.")
-        return
-
-    pedidos_df = pd.read_csv(pedidos_db_path)
-    frota_df = pd.read_csv(frota_db_path)
 
     if pedidos_df.empty or frota_df.empty:
         st.error("Os dados de pedidos ou frota estão vazios.")
