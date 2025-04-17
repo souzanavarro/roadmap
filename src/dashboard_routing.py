@@ -64,6 +64,15 @@ def dashboard_routing():
         else:
             st.warning("Selecione uma opção de roteirização.")
 
+        # Garantir que cada pedido seja alocado em apenas um veículo
+        pedidos_alocados = set()
+        rotas_unicas = []
+        for rota in rotas:
+            rota_unica = [idx for idx in rota if idx not in pedidos_alocados]
+            pedidos_alocados.update(rota_unica)
+            rotas_unicas.append(rota_unica)
+        rotas = rotas_unicas
+
         # Só mostra filtros e mapas se rotas foi definida
         if rotas:
             veiculos_opcoes = [f"Veículo {i+1} - Placa: {frota_df.iloc[i % len(frota_df)]['Placa']}" for i in range(len(rotas))]
