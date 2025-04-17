@@ -687,3 +687,51 @@ def alocacao_regioes_por_veiculo(pedidos_df, frota_df, n_clusters=3, regioes_por
                     pedidos_df.at[idx, 'Status Alocacao'] = 'Alocado'
                     break
     return pedidos_df
+
+def resolver_vrp(pedidos_df, frota_df, capacidade_max=None):
+    print(f"[LOG] resolver_vrp chamado com {len(pedidos_df)} pedidos e {len(frota_df)} veículos. Capacidade máxima: {capacidade_max}")
+    coords = [(row['Latitude'], row['Longitude']) for _, row in pedidos_df.iterrows()]
+    n = len(coords)
+    num_veiculos = len(frota_df)
+    matriz = [[geodesic(coords[i], coords[j]).meters for j in range(n)] for i in range(n)]
+    print(f"[LOG] Matriz de distâncias calculada. Tamanho: {len(matriz)}x{len(matriz[0]) if matriz else 0}")
+    manager = pywrapcp.RoutingIndexManager(n, num_veiculos, 0)
+    routing = pywrapcp.RoutingModel(manager)
+    def dist_callback(from_idx, to_idx):
+        return int(matriz[manager.IndexToNode(from_idx)][manager.IndexToNode(to_idx)])
+    transit_callback_index = routing.RegisterTransitCallback(dist_callback)
+    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+
+    # Restrição de capacidade individual por veículo
+    if 'Peso dos Itens' in pedidos_df.columns and 'Capac. Kg' in frota_df.columns:
+        demands = [int(p) for p in pedidos_df['Peso dos Itens']]
+        def demand_callback(from_index):
+            node = manager.IndexToNode(from_index)
+            return demands[node]
+        demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
+        capacidades = [int(c) for c in frota_df['Capac. Kg']]
+        routing.AddDimensionWithVehicleCapacity(
+            demand_callback_index,
+            0,  # sem capacidade extra
+            capacidades,  # capacidade individual de cada veículo
+            True,  # start cumul to zero
+            'Capacity')
+        print(f"[LOG] Restrições de capacidade aplicadas: {capacidades}")
+
+    search_params = pywrapcp.DefaultRoutingSearchParameters()
+    search_params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+    solution = routing.SolveWithParameters(search_params)
+    rotas = []
+    if solution:
+        for v in range(num_veiculos):
+            idx = routing.Start(v)
+            rota = []
+            while not routing.IsEnd(idx):
+                node = manager.IndexToNode(idx)
+                rota.append(node)
+                idx = solution.Value(routing.NextVar(idx))
+            rotas.append(rota)
+        print(f"[LOG] Rotas geradas pelo VRP: {rotas}")
+    else:
+        print("[LOG] Nenhuma solução encontrada pelo VRP!")
+    return rotas

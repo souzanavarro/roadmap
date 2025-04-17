@@ -39,11 +39,13 @@ def dashboard_routing():
 
     # Opções de roteirização (radio button)
     st.subheader("Opções de Roteirização")
+    st.write("[LOG] Iniciando dashboard de roteirização...")
     tipo_roteirizacao = st.radio(
         "Escolha o tipo de roteirização:",
         options=["VRP (múltiplos veículos)", "TSP (um único veículo)"],
         index=0
     )
+    st.write(f"[LOG] Tipo de roteirização selecionado: {tipo_roteirizacao}")
     usar_vrp = tipo_roteirizacao.startswith("VRP")
     usar_tsp = tipo_roteirizacao.startswith("TSP")
 
@@ -51,12 +53,15 @@ def dashboard_routing():
     pedidos_db_path = "src/database/database_pedidos.csv"
     frota_db_path = "src/database/database_frota.csv"
 
+    st.write(f"[LOG] Verificando existência dos arquivos: {pedidos_db_path}, {frota_db_path}")
     if not (os.path.exists(pedidos_db_path) and os.path.exists(frota_db_path)):
         st.error("Certifique-se de que os dados de pedidos e frota estão disponíveis.")
+        print("[LOG] Arquivos de pedidos ou frota não encontrados!")
         return
 
     pedidos_df = pd.read_csv(pedidos_db_path)
     frota_df = pd.read_csv(frota_db_path)
+    st.write(f"[LOG] Pedidos carregados: {len(pedidos_df)} | Frota carregada: {len(frota_df)}")
 
     # Opções de restrições e parâmetros avançados
     with st.expander('Restrições e Parâmetros Avançados'):
@@ -124,37 +129,49 @@ def dashboard_routing():
     rotas = None  # Inicializa rotas
     if st.button("Roteirizar Pedidos", type="primary"):
         try:
+            st.write(f"[LOG] Iniciando roteirização com {len(pedidos_df)} pedidos e {len(frota_df)} veículos.")
             # Antes de roteirizar, garantir que as regiões estão separadas por coordenadas
             if 'Região' not in pedidos_df.columns or pedidos_df['Região'].nunique() < n_clusters:
                 from routing import agrupar_por_regiao
+                st.write(f"[LOG] Agrupando pedidos em {n_clusters} regiões...")
                 pedidos_df = agrupar_por_regiao(pedidos_df, n_clusters)
+                st.write(f"[LOG] Regiões após agrupamento: {pedidos_df['Regiao'].unique()}")
 
             if usar_vrp:
+                st.write(f"[LOG] Chamando algoritmo VRP com prioridade: {prioridade_alocacao}")
                 if prioridade_alocacao == 'Capacidade + Região':
                     pedidos_alocados_df = alocacao_prioridade_capacidade_regiao(pedidos_df, frota_df, n_clusters=n_clusters)
                     st.success("Alocação por Capacidade + Região concluída! Veja a tabela abaixo.")
                     st.dataframe(pedidos_alocados_df, use_container_width=True)
+                    print("[LOG] Alocação por Capacidade + Região finalizada.")
                     return
                 elif prioridade_alocacao == 'Região':
                     from routing import alocacao_regioes_por_veiculo
                     pedidos_alocados_df = alocacao_regioes_por_veiculo(pedidos_df, frota_df, n_clusters=n_clusters, regioes_por_veiculo=regioes_por_veiculo)
                     st.success("Alocação por Região (com limite de regiões por veículo) concluída! Veja a tabela abaixo.")
                     st.dataframe(pedidos_alocados_df, use_container_width=True)
+                    print("[LOG] Alocação por Região finalizada.")
                     return
                 else:
                     if modo_capacidade == 'Capacidade máxima fixa (kg)':
+                        st.write(f"[LOG] VRP com capacidade máxima fixa: {capacidade_max}")
                         rotas = resolver_vrp(pedidos_df, frota_df, capacidade_max=capacidade_max)
                     else:
+                        st.write(f"[LOG] VRP com percentual de utilização: {percentual_utilizacao}%")
                         rotas = resolver_vrp(pedidos_df, frota_df, percentual_utilizacao=percentual_utilizacao)
                     st.success("Roteirização VRP concluída e salva no histórico!")
+                    st.write(f"[LOG] Rotas geradas: {rotas}")
             elif usar_tsp:
                 from routing import tsp_nearest_neighbor
                 partida_coords = (-23.0838, -47.1336)
+                st.write(f"[LOG] Chamando algoritmo TSP para {len(pedidos_df)} pedidos.")
                 rota_tsp = tsp_nearest_neighbor(pedidos_df, partida_coords)
                 rotas = [rota_tsp]
                 st.success("Roteirização TSP concluída e salva no histórico!")
+                st.write(f"[LOG] Rota TSP gerada: {rota_tsp}")
             else:
                 st.warning("Selecione uma opção de roteirização.")
+                print("[LOG] Nenhuma opção de roteirização selecionada.")
 
             # Garantir que cada pedido seja alocado em apenas um veículo
             pedidos_alocados = set()
@@ -164,6 +181,7 @@ def dashboard_routing():
                 pedidos_alocados.update(rota_unica)
                 rotas_unicas.append(rota_unica)
             rotas = rotas_unicas
+            st.write(f"[LOG] Rotas finais (sem duplicidade): {rotas}")
 
             # Salvar histórico de roteirizações
             from datetime import datetime
@@ -184,8 +202,10 @@ def dashboard_routing():
             if historico:
                 historico_df = pd.concat(historico)
                 historico_df.to_csv(historico_path, index=False)
+                st.write(f"[LOG] Histórico salvo em {historico_path} com {len(historico_df)} registros.")
         except Exception as e:
             tratar_erro("Erro ao realizar a roteirização. Verifique os dados e tente novamente.", e)
+            st.write(f"[LOG] Erro na roteirização: {e}")
         return  # Não mostrar nada até o usuário clicar novamente
 
     # Após roteirizar, só mostrar o histórico
