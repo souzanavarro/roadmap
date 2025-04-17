@@ -1,53 +1,65 @@
-# Streamlit App
+# Roadmap Roteirização - Streamlit App
 
-This project is a simple Streamlit application that demonstrates how to create a web app using Python. 
+Este projeto é uma aplicação de roteirização de entregas desenvolvida em Python com Streamlit, utilizando algoritmos de VRP (Vehicle Routing Problem), TSP, clustering e integração com mapas.
 
-## Project Structure
+## Estrutura do Projeto
 
 ```
-streamlit-app
-├── src
-│   └── app.py          # Main application file
-├── requirements.txt     # Python dependencies
-├── .streamlit
-│   └── config.toml     # Streamlit configuration settings
-└── README.md            # Project documentation
+roadmap/
+├── src/
+│   ├── app.py                  # App principal Streamlit
+│   ├── dashboard_routing.py    # Dashboard de roteirização
+│   ├── dashboard_frota.py      # Dashboard de frota
+│   ├── dashboard_pedidos.py    # Dashboard de pedidos
+│   ├── dashboard_ia.py         # Dashboard IA
+│   ├── routing.py              # Algoritmos de roteirização (VRP, TSP, clusters)
+│   ├── geocode.py, map_utils.py
+│   └── database/               # Dados e históricos
+│       ├── database_pedidos.csv
+│       ├── database_frota.csv
+│       ├── historico_roteirizacoes.csv
+│       └── rotas_exportadas/
+├── requirements.txt            # Dependências Python
+├── .devcontainer/devcontainer.json # Inicialização automática do Streamlit no Codespaces
+└── README.md                   # Documentação
 ```
 
-## Installation
+## Principais Funcionalidades
+- Roteirização VRP com restrição de capacidade individual e percentual
+- Alocação inteligente por região, capacidade, ou ambas
+- Definição de clusters (regiões) por percentual
+- Exportação de rotas para Excel
+- Visualização de rotas em mapa (Folium)
+- Dashboard interativo (Streamlit)
+- Inicialização automática do Streamlit no Codespaces
 
-To set up the project, follow these steps:
+## Instalação
 
-1. Clone the repository:
-   ```
+1. Clone o repositório:
+   ```bash
    git clone <repository-url>
-   cd streamlit-app
+   cd roadmap
    ```
-
-2. Create a virtual environment (optional but recommended):
-   ```
+2. (Opcional) Crie um ambiente virtual:
+   ```bash
    python -m venv venv
-   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   source venv/bin/activate  # Windows: venv\Scripts\activate
    ```
-
-3. Install the required dependencies:
-   ```
+3. Instale as dependências:
+   ```bash
    pip install -r requirements.txt
    ```
 
-## Running the App
+## Executando o App
 
-To run the Streamlit app, use the following command:
-```
+```bash
 streamlit run src/app.py
 ```
 
-This will start the Streamlit server and open the app in your default web browser.
+No Codespaces, o Streamlit inicia automaticamente.
 
-## Contributing
+## Contribuição
+Pull requests e sugestões são bem-vindos!
 
-Feel free to submit issues or pull requests if you have suggestions or improvements for the project. 
-
-## License
-
-This project is licensed under the MIT License.
+## Licença
+MIT License

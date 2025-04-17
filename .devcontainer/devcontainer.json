@@ -1,0 +1,14 @@
+{
+  "name": "roadmap-codespace",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postStartCommand": "streamlit run src/app.py --server.port 8501 --server.address 0.0.0.0",
+  "customizations": {
+    "vscode": {
+      "settings": {},
+      "extensions": [
+        "ms-python.python",
+        "ms-toolsai.jupyter"
+      ]
+    }
+  }
+}
