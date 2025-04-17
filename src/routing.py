@@ -634,11 +634,12 @@ def alocacao_regioes_por_veiculo(pedidos_df, frota_df, n_clusters=3, regioes_por
     - Agrupamento dos pedidos em regiões (clusters)
     - Cada veículo pode atender até 'regioes_por_veiculo' diferentes
     - Todos os pedidos devem ser roteirizados
-    - Respeita a capacidade individual de cada veículo
+    - Respeita a capacidade individual de cada veículo (Capac. Kg)
     Retorna DataFrame de pedidos com colunas 'Veiculo', 'Placa', 'Regiao', 'Status Alocacao'.
     """
     import numpy as np
     from sklearn.cluster import KMeans
+    from itertools import combinations
     pedidos_df = pedidos_df.copy()
     frota_df = frota_df.copy()
     pedidos_df = pedidos_df.dropna(subset=['Latitude', 'Longitude', 'Peso dos Itens'])
@@ -651,8 +652,6 @@ def alocacao_regioes_por_veiculo(pedidos_df, frota_df, n_clusters=3, regioes_por
     frota_df = frota_df.sort_values('Capac. Kg', ascending=False).reset_index(drop=True)
     veiculo_global = 1
     regioes = pedidos_df['Regiao'].unique().tolist()
-    # Gera todas as combinações possíveis de regioes_por_veiculo regiões
-    from itertools import combinations
     regioes_combinacoes = list(combinations(regioes, min(regioes_por_veiculo, len(regioes))))
     veiculo_idx = 0
     pedidos_restantes = pedidos_df[pedidos_df['Status Alocacao'] == 'Não Alocado']
@@ -674,13 +673,17 @@ def alocacao_regioes_por_veiculo(pedidos_df, frota_df, n_clusters=3, regioes_por
         veiculo_global += 1
         veiculo_idx += 1
         pedidos_restantes = pedidos_df[pedidos_df['Status Alocacao'] == 'Não Alocado']
-    # Se ainda restarem pedidos, aloca nos veículos disponíveis, ignorando restrição de regiões
+    # Se ainda restarem pedidos, tenta alocar respeitando capacidade
     if not pedidos_restantes.empty:
-        veiculo_idx = 0
         for idx, pedido in pedidos_restantes.iterrows():
-            veiculo = frota_df.iloc[veiculo_idx % len(frota_df)]
-            pedidos_df.at[idx, 'Veiculo'] = veiculo_idx + 1
-            pedidos_df.at[idx, 'Placa'] = veiculo['Placa']
-            pedidos_df.at[idx, 'Status Alocacao'] = 'Alocado'
-            veiculo_idx += 1
+            for veiculo_idx, veiculo in frota_df.iterrows():
+                capacidade_kg = veiculo['Capac. Kg']
+                capacidade_cx = veiculo['Capac. Cx'] if 'Capac. Cx' in veiculo else np.inf
+                peso_alocado = pedidos_df[(pedidos_df['Placa'] == veiculo['Placa']) & (pedidos_df['Status Alocacao'] == 'Alocado')]['Peso dos Itens'].sum()
+                cx_alocado = pedidos_df[(pedidos_df['Placa'] == veiculo['Placa']) & (pedidos_df['Status Alocacao'] == 'Alocado')]['Qtde. dos Itens'].sum() if 'Qtde. dos Itens' in pedidos_df.columns else 0
+                if (peso_alocado + pedido['Peso dos Itens'] <= capacidade_kg) and (cx_alocado + pedido.get('Qtde. dos Itens', 0) <= capacidade_cx):
+                    pedidos_df.at[idx, 'Veiculo'] = veiculo_idx + 1
+                    pedidos_df.at[idx, 'Placa'] = veiculo['Placa']
+                    pedidos_df.at[idx, 'Status Alocacao'] = 'Alocado'
+                    break
     return pedidos_df

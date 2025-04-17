@@ -61,13 +61,13 @@ def dashboard_routing():
     # Opções de restrições e parâmetros avançados
     with st.expander('Restrições e Parâmetros Avançados'):
         modo_capacidade = st.radio('Como considerar a capacidade dos veículos?', [
-            'Capacidade máxima fixa (kg)',
-            'Capacidade individual da frota (%)'
+            'Capacidade individual da frota (%)',
+            'Capacidade máxima fixa (kg)'
         ], index=0)
         if modo_capacidade == 'Capacidade máxima fixa (kg)':
             capacidade_total_frota = int(frota_df['Capac. Kg'].sum()) if 'Capac. Kg' in frota_df.columns else 0
             st.info(f'Capacidade total disponível na frota: {capacidade_total_frota} kg')
-            capacidade_max = st.number_input('Capacidade máxima por veículo (kg)', min_value=1, value=1000)
+            capacidade_max = st.number_input('Capacidade máxima por veículo (kg)', min_value=1, value=capacidade_total_frota)
             percentual_utilizacao = 100
         else:
             percentual_utilizacao = st.slider('Percentual de utilização da capacidade de cada caminhão (%)', min_value=10, max_value=100, value=100, step=5)
@@ -79,8 +79,13 @@ def dashboard_routing():
         tipo_otimizacao = st.selectbox('Tipo de otimização', ['Menor distância', 'Menor tempo'])
         prioridade_alocacao = st.selectbox('Prioridade de alocação', ['Capacidade', 'Região', 'Capacidade + Região', 'Tipo de carga'])
         n_clusters = 3  # valor padrão
+        regioes_por_veiculo = 1
         if 'Região' in prioridade_alocacao:
-            n_clusters = st.slider('Quantidade de regiões (clusters)', min_value=1, max_value=5, value=3)
+            percentual_regioes = st.slider('Percentual de regiões (clusters)', min_value=5, max_value=100, value=10, step=5, help='Percentual de clusters em relação ao total de pedidos')
+            total_pedidos = len(pedidos_df)
+            n_clusters = max(1, int(total_pedidos * percentual_regioes / 100))
+            st.info(f'Total de regiões (clusters) calculado: {n_clusters}')
+            regioes_por_veiculo = st.slider('Máximo de regiões por veículo', min_value=1, max_value=n_clusters, value=1)
 
     if pedidos_df.empty or frota_df.empty:
         st.error("Os dados de pedidos ou frota estão vazios.")
@@ -118,8 +123,9 @@ def dashboard_routing():
                     st.dataframe(pedidos_alocados_df, use_container_width=True)
                     return
                 elif prioridade_alocacao == 'Região':
-                    pedidos_alocados_df = alocacao_prioridade_capacidade_regiao(pedidos_df, frota_df, n_clusters=n_clusters)
-                    st.success("Alocação por Região concluída! Veja a tabela abaixo.")
+                    from routing import alocacao_regioes_por_veiculo
+                    pedidos_alocados_df = alocacao_regioes_por_veiculo(pedidos_df, frota_df, n_clusters=n_clusters, regioes_por_veiculo=regioes_por_veiculo)
+                    st.success("Alocação por Região (com limite de regiões por veículo) concluída! Veja a tabela abaixo.")
                     st.dataframe(pedidos_alocados_df, use_container_width=True)
                     return
                 else:
