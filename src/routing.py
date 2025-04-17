@@ -482,7 +482,7 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
             veiculos_necessarios.append(veiculo)
             peso_restante -= veiculo['Capac. Kg']
             cx_restante -= veiculo['Capac. Cx']
-            frota_disp = frota_disp.iloc(1:)
+            frota_disp = frota_disp.iloc[1:]
         if peso_restante > 0 or cx_restante > 0:
             st.warning(f"Região {regiao} excede a capacidade da frota disponível! Alguns pedidos podem ficar sem alocação.")
         # Distribuição de pedidos entre veículos
