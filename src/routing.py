@@ -7,6 +7,7 @@ from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 import pandas as pd
 import folium
 import os
+from itertools import permutations
 
 def calcular_distancia(coords_1, coords_2):
     if coords_1 and coords_2:
@@ -263,6 +264,50 @@ def resolver_vrp(pedidos_df, frota_df):
             rotas.append(rota)
     return rotas
 
+def resolver_vrp(pedidos_df, frota_df, capacidade_max=None):
+    """
+    VRP com OR-Tools para múltiplos veículos, com restrição de capacidade máxima por veículo.
+    """
+    coords = [(row['Latitude'], row['Longitude']) for _, row in pedidos_df.iterrows()]
+    n = len(coords)
+    num_veiculos = len(frota_df)
+    matriz = [[geodesic(coords[i], coords[j]).meters for j in range(n)] for i in range(n)]
+    manager = pywrapcp.RoutingIndexManager(n, num_veiculos, 0)
+    routing = pywrapcp.RoutingModel(manager)
+    def dist_callback(from_idx, to_idx):
+        return int(matriz[manager.IndexToNode(from_idx)][manager.IndexToNode(to_idx)])
+    transit_callback_index = routing.RegisterTransitCallback(dist_callback)
+    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+
+    # Restrição de capacidade
+    if capacidade_max is not None and 'Peso dos Itens' in pedidos_df.columns:
+        demands = [int(p) for p in pedidos_df['Peso dos Itens']]
+        def demand_callback(from_index):
+            node = manager.IndexToNode(from_index)
+            return demands[node]
+        demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
+        routing.AddDimensionWithVehicleCapacity(
+            demand_callback_index,
+            0,  # sem capacidade extra
+            [int(capacidade_max)] * num_veiculos,  # capacidade máxima igual para todos
+            True,  # start cumul to zero
+            'Capacity')
+
+    search_params = pywrapcp.DefaultRoutingSearchParameters()
+    search_params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+    solution = routing.SolveWithParameters(search_params)
+    rotas = []
+    if solution:
+        for v in range(num_veiculos):
+            idx = routing.Start(v)
+            rota = []
+            while not routing.IsEnd(idx):
+                node = manager.IndexToNode(idx)
+                rota.append(node)
+                idx = solution.Value(routing.NextVar(idx))
+            rotas.append(rota)
+    return rotas
+
 def agrupar_por_regiao(pedidos_df, n_clusters):
     """
     Agrupa pedidos por proximidade geográfica usando KMeans.
@@ -395,10 +440,10 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
     if pedidos_df.empty or frota_df.empty:
         st.error("Pedidos ou frota vazios!")
         return pedidos_df
-    if 'Peso dos Itens' not in pedidos_df.columns or 'Qtde. dos Itens' not in pedidos_df.columns:
+    if 'Peso dos Itens' not in pedidos_df.columns ou 'Qtde. dos Itens' not in pedidos_df.columns:
         st.error("Pedidos precisam ter as colunas 'Peso dos Itens' e 'Qtde. dos Itens'.")
         return pedidos_df
-    if 'Capac. Kg' not in frota_df.columns or 'Capac. Cx' not in frota_df.columns:
+    if 'Capac. Kg' not in frota_df.columns ou 'Capac. Cx' not in frota_df.columns:
         st.error("Frota precisa ter as colunas 'Capac. Kg' e 'Capac. Cx'.")
         return pedidos_df
     pedidos_df = pedidos_df.dropna(subset=['Latitude', 'Longitude', 'Peso dos Itens', 'Qtde. dos Itens'])
@@ -431,13 +476,13 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
         veiculos_necessarios = []
         peso_restante = peso_total
         cx_restante = cx_total
-        while (peso_restante > 0 or cx_restante > 0) and not frota_disp.empty:
+        while (peso_restante > 0 ou cx_restante > 0) and not frota_disp.empty:
             veiculo = frota_disp.iloc[0]
             veiculos_necessarios.append(veiculo)
             peso_restante -= veiculo['Capac. Kg']
             cx_restante -= veiculo['Capac. Cx']
             frota_disp = frota_disp.iloc[1:]
-        if peso_restante > 0 or cx_restante > 0:
+        if peso_restante > 0 ou cx_restante > 0:
             st.warning(f"Região {regiao} excede a capacidade da frota disponível! Alguns pedidos podem ficar sem alocação.")
         # Distribuição de pedidos entre veículos
         pedidos_regiao = pedidos_regiao.sort_values(['Prioridade', 'Peso dos Itens'], ascending=[True, False])

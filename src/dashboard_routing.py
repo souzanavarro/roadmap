@@ -47,6 +47,16 @@ def dashboard_routing():
     usar_vrp = tipo_roteirizacao.startswith("VRP")
     usar_tsp = tipo_roteirizacao.startswith("TSP")
 
+    # Opções de restrições e parâmetros avançados
+    with st.expander('Restrições e Parâmetros Avançados'):
+        capacidade_max = st.number_input('Capacidade máxima por veículo (kg)', min_value=1, value=1000)
+        usar_janela_tempo = st.checkbox('Usar janelas de tempo para entregas?')
+        if usar_janela_tempo:
+            janela_inicio = st.time_input('Início da janela de entrega', value=None)
+            janela_fim = st.time_input('Fim da janela de entrega', value=None)
+        tipo_otimizacao = st.selectbox('Tipo de otimização', ['Menor distância', 'Menor tempo'])
+        prioridade_alocacao = st.selectbox('Prioridade de alocação', ['Capacidade', 'Região', 'Tipo de carga'])
+
     # Carregar pedidos e frota
     pedidos_db_path = "src/database/database_pedidos.csv"
     frota_db_path = "src/database/database_frota.csv"
@@ -88,7 +98,7 @@ def dashboard_routing():
     if st.button("Roteirizar Pedidos", type="primary"):
         try:
             if usar_vrp:
-                rotas = resolver_vrp(pedidos_df, frota_df)
+                rotas = resolver_vrp(pedidos_df, frota_df, capacidade_max=capacidade_max)
                 st.success("Roteirização VRP concluída e salva no histórico!")
             elif usar_tsp:
                 from routing import tsp_nearest_neighbor
