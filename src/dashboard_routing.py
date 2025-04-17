@@ -39,6 +39,11 @@ def dashboard_routing():
         st.error("Nenhum pedido possui coordenadas válidas para roteirização.")
         return
 
+    # Remover pedidos duplicados por cliente (mantendo o maior peso)
+    if 'Cód. Cliente' in pedidos_df.columns and 'Peso dos Itens' in pedidos_df.columns:
+        pedidos_df = pedidos_df.sort_values('Peso dos Itens', ascending=False)
+        pedidos_df = pedidos_df.drop_duplicates(subset=['Cód. Cliente'], keep='first')
+
     # Resolver o problema de roteirização conforme a opção escolhida
     rotas = None  # Inicializa rotas
     try:
@@ -66,6 +71,23 @@ def dashboard_routing():
             from streamlit_folium import folium_static
             mapa = criar_mapa_rotas(pedidos_rota, rotas=[[i for i in range(len(pedidos_rota))]], partida_coords=(-23.0838, -47.1336))
             folium_static(mapa, width=1600, height=700)
+
+            # Salvar histórico de roteirizações
+            from datetime import datetime
+            historico_path = os.path.join("src", "database", "historico_roteirizacoes.csv")
+            historico = []
+            data_roteirizacao = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            for veiculo_id, rota in enumerate(rotas):
+                pedidos_rota = pedidos_df.iloc[rota].copy()
+                pedidos_rota['Placa'] = frota_df.iloc[veiculo_id % len(frota_df)]['Placa']
+                pedidos_rota['Veiculo'] = veiculo_id + 1
+                pedidos_rota['Data Roteirizacao'] = data_roteirizacao
+                historico.append(pedidos_rota)
+            historico_df = pd.concat(historico)
+            if os.path.exists(historico_path):
+                historico_antigo = pd.read_csv(historico_path)
+                historico_df = pd.concat([historico_antigo, historico_df], ignore_index=True)
+            historico_df.to_csv(historico_path, index=False)
 
     except Exception as e:
         st.error(f"Erro ao realizar a roteirização: {e}")
