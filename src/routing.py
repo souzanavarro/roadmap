@@ -266,7 +266,7 @@ def resolver_vrp(pedidos_df, frota_df):
 
 def resolver_vrp(pedidos_df, frota_df, capacidade_max=None):
     """
-    VRP com OR-Tools para múltiplos veículos, com restrição de capacidade máxima por veículo.
+    VRP com OR-Tools para múltiplos veículos, com restrição de capacidade máxima individual por veículo.
     """
     coords = [(row['Latitude'], row['Longitude']) for _, row in pedidos_df.iterrows()]
     n = len(coords)
@@ -279,17 +279,18 @@ def resolver_vrp(pedidos_df, frota_df, capacidade_max=None):
     transit_callback_index = routing.RegisterTransitCallback(dist_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
-    # Restrição de capacidade
-    if capacidade_max is not None and 'Peso dos Itens' in pedidos_df.columns:
+    # Restrição de capacidade individual por veículo
+    if 'Peso dos Itens' in pedidos_df.columns and 'Capac. Kg' in frota_df.columns:
         demands = [int(p) for p in pedidos_df['Peso dos Itens']]
         def demand_callback(from_index):
             node = manager.IndexToNode(from_index)
             return demands[node]
         demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
+        capacidades = [int(c) for c in frota_df['Capac. Kg']]
         routing.AddDimensionWithVehicleCapacity(
             demand_callback_index,
             0,  # sem capacidade extra
-            [int(capacidade_max)] * num_veiculos,  # capacidade máxima igual para todos
+            capacidades,  # capacidade individual de cada veículo
             True,  # start cumul to zero
             'Capacity')
 
@@ -482,7 +483,7 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
             peso_restante -= veiculo['Capac. Kg']
             cx_restante -= veiculo['Capac. Cx']
             frota_disp = frota_disp.iloc[1:]
-        if peso_restante > 0 or cx_restante > 0:
+        if peso_restante > 0 ou cx_restante > 0:
             st.warning(f"Região {regiao} excede a capacidade da frota disponível! Alguns pedidos podem ficar sem alocação.")
         # Distribuição de pedidos entre veículos
         pedidos_regiao = pedidos_regiao.sort_values(['Prioridade', 'Peso dos Itens'], ascending=[True, False])
