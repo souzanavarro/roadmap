@@ -42,11 +42,28 @@ def dashboard_ia():
             st.info("Se quiser tentar mesmo assim, clique no botão abaixo. O processo pode ser demorado e pode falhar se atingir o limite das APIs.")
             if st.button("Tentar obter coordenadas automaticamente (pode ser lento)"):
                 coordenadas_salvas = {}
+                coord_db_path = os.path.join("src", "database", "database_coordernadas.csv")
+                # Carregar coordenadas já salvas
+                if os.path.exists(coord_db_path) and os.path.getsize(coord_db_path) > 0:
+                    coord_db = pd.read_csv(coord_db_path)
+                    for _, row in coord_db.iterrows():
+                        coordenadas_salvas[row['Endereço']] = (row['Latitude'], row['Longitude'])
                 def get_coords(row):
                     lat, lon = obter_coordenadas_com_fallback(row['Endereço Completo'], coordenadas_salvas)
                     return pd.Series({'Latitude': lat, 'Longitude': lon})
                 ia_df[['Latitude', 'Longitude']] = ia_df.apply(get_coords, axis=1)
-                st.success("Coordenadas obtidas (parcialmente ou totalmente). Confira a planilha!")
+                # Salvar coordenadas em database_coordernadas.csv
+                coord_df = pd.DataFrame({
+                    'Endereço': ia_df['Endereço Completo'],
+                    'Latitude': ia_df['Latitude'],
+                    'Longitude': ia_df['Longitude']
+                })
+                coord_df.drop_duplicates(subset=['Endereço'], inplace=True)
+                if os.path.exists(coord_db_path):
+                    coord_db = pd.read_csv(coord_db_path)
+                    coord_df = pd.concat([coord_db, coord_df]).drop_duplicates(subset=['Endereço'], keep='last')
+                coord_df.to_csv(coord_db_path, index=False)
+                st.success("Coordenadas obtidas (parcialmente ou totalmente) e salvas no banco de coordenadas. Confira a planilha!")
         st.dataframe(ia_df)
         # Salvar no database local na pasta src/database
         os.makedirs(os.path.join("src", "database"), exist_ok=True)
