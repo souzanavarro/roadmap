@@ -84,7 +84,7 @@ def dashboard_routing():
         pedidos_df = pedidos_df.sort_values('Peso dos Itens', ascending=False)
         pedidos_df = pedidos_df.drop_duplicates(subset=['Cód. Cliente'], keep='first')
 
-    # Botão para executar a roteirização
+    rotas = None  # Inicializa rotas
     if st.button("Roteirizar Pedidos", type="primary"):
         try:
             if usar_vrp:
@@ -122,99 +122,57 @@ def dashboard_routing():
                 historico_df.to_csv(historico_path, index=False)
         except Exception as e:
             tratar_erro("Erro ao realizar a roteirização. Verifique os dados e tente novamente.", e)
+        return  # Não mostrar nada até o usuário clicar novamente
 
-    # Resolver o problema de roteirização conforme a opção escolhida
-    rotas = None  # Inicializa rotas
-    try:
-        if usar_vrp:
-            rotas = resolver_vrp(pedidos_df, frota_df)
-            st.success("Roteirização VRP concluída com sucesso!")
-        elif usar_tsp:
-            st.info("Função TSP ainda não implementada neste dashboard.")
-        else:
-            st.warning("Selecione uma opção de roteirização.")
-
-        # Garantir que cada pedido seja alocado em apenas um veículo
-        pedidos_alocados = set()
-        rotas_unicas = []
-        for rota in rotas:
-            rota_unica = [idx for idx in rota if idx not in pedidos_alocados]
-            pedidos_alocados.update(rota_unica)
-            rotas_unicas.append(rota_unica)
-        rotas = rotas_unicas
-
-        # Só mostra filtros e mapas se rotas foi definida
-        if rotas:
-            # Filtrar apenas veículos com pedidos
-            veiculos_com_pedidos = [i for i, rota in enumerate(rotas) if len(rota) > 0]
-            if not veiculos_com_pedidos:
-                st.warning("Nenhum veículo possui pedidos alocados nesta roteirização.")
-                return
-            veiculos_opcoes = [f"Veículo {i+1} - Placa: {frota_df.iloc[i % len(frota_df)]['Placa']}" for i in veiculos_com_pedidos]
-            veiculo_idx_map = {opcao: i for opcao, i in zip(veiculos_opcoes, veiculos_com_pedidos)}
-            veiculo_selecionado = st.selectbox(
-                "Selecione o veículo para visualizar a rota:",
-                options=veiculos_opcoes
-            )
-            veiculo_idx = veiculo_idx_map[veiculo_selecionado]
-
-            # Exibir mini planilha do veículo selecionado
-            st.subheader(f"Rota para {veiculos_opcoes[veiculo_idx]}")
-            if len(rotas[veiculo_idx]) == 0:
-                st.info("Este veículo não possui pedidos alocados.")
-            else:
-                pedidos_rota = pedidos_df.iloc[rotas[veiculo_idx]].copy()
-                pedidos_rota['Placa'] = frota_df.iloc[veiculo_idx % len(frota_df)]['Placa']
-                st.dataframe(pedidos_rota, use_container_width=True)
-
-                # Exibir mapa da rota do veículo selecionado
-                from routing import criar_mapa_rotas
-                from streamlit_folium import folium_static
-                st.markdown("""
-                <style>
-                #dashboard-routing-mapa .map-box {
-                    background: linear-gradient(90deg, #fff3e0 0%, #ffe0b2 100%);
-                    border-radius: 12px;
-                    padding: 1.5em 2em;
-                    margin-bottom: 2em;
-                    box-shadow: 0 2px 8px rgba(255,152,0,0.08);
-                }
-                #dashboard-routing-mapa .map-title {
-                    font-size: 1.5em;
-                    font-weight: bold;
-                    color: #ff9800;
-                    margin-bottom: 0.7em;
-                }
-                </style>
-                <div id='dashboard-routing-mapa'>
-                  <div class='map-box'>
-                    <div class='map-title'>Mapa da Roteirização</div>
-                """, unsafe_allow_html=True)
-                mapa = criar_mapa_rotas(pedidos_rota, rotas=[[i for i in range(len(pedidos_rota))]], partida_coords=(-23.0838, -47.1336))
-                folium_static(mapa, width=1200, height=500)
-                st.markdown("</div></div>", unsafe_allow_html=True)
-
-            # Salvar histórico de roteirizações
-            from datetime import datetime
-            historico_path = os.path.join("src", "database", "historico_roteirizacoes.csv")
-            historico = []
-            data_roteirizacao = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            for veiculo_id, rota in enumerate(rotas):
-                if len(rota) == 0:
-                    continue
-                pedidos_rota = pedidos_df.iloc[rota].copy()
-                pedidos_rota['Placa'] = frota_df.iloc[veiculo_id % len(frota_df)]['Placa']
-                pedidos_rota['Veiculo'] = veiculo_id + 1
-                pedidos_rota['Data Roteirizacao'] = data_roteirizacao
-                historico.append(pedidos_rota)
-            if historico:
-                historico_df = pd.concat(historico)
-                if os.path.exists(historico_path):
-                    historico_antigo = pd.read_csv(historico_path)
-                    historico_df = pd.concat([historico_antigo, historico_df], ignore_index=True)
-                historico_df.to_csv(historico_path, index=False)
-    except Exception as e:
-        tratar_erro("Erro ao realizar a roteirização. Verifique os dados e tente novamente.", e)
+    # Após roteirizar, só mostrar o histórico
+    historico_path = os.path.join("src", "database", "historico_roteirizacoes.csv")
+    if not os.path.exists(historico_path) or os.path.getsize(historico_path) == 0:
+        st.info("Nenhuma roteirização foi realizada ainda. Clique em 'Roteirizar Pedidos' para começar.")
+        return
+    historico_df = pd.read_csv(historico_path)
+    if historico_df.empty:
+        st.info("Nenhuma roteirização foi realizada ainda. Clique em 'Roteirizar Pedidos' para começar.")
+        return
+    # Mostrar apenas o que está no histórico
+    veiculos = historico_df['Veiculo'].unique()
+    veiculos_opcoes = [f"Veículo {v} - Placa: {p}" for v, p in zip(historico_df['Veiculo'], historico_df['Placa'])]
+    veiculo_idx_map = {opcao: v for opcao, v in zip(veiculos_opcoes, veiculos)}
+    veiculo_selecionado = st.selectbox(
+        "Selecione o veículo para visualizar a rota:",
+        options=veiculos_opcoes
+    )
+    veiculo_idx = veiculo_idx_map[veiculo_selecionado]
+    pedidos_rota = historico_df[historico_df['Veiculo'] == veiculo_idx].copy()
+    st.subheader(f"Rota para {veiculo_selecionado}")
+    if pedidos_rota.empty:
+        st.info("Este veículo não possui pedidos alocados.")
+    else:
+        st.dataframe(pedidos_rota, use_container_width=True)
+        from routing import criar_mapa_rotas
+        from streamlit_folium import folium_static
+        st.markdown("""
+        <style>
+        #dashboard-routing-mapa .map-box {
+            background: linear-gradient(90deg, #fff3e0 0%, #ffe0b2 100%);
+            border-radius: 12px;
+            padding: 1.5em 2em;
+            margin-bottom: 2em;
+            box-shadow: 0 2px 8px rgba(255,152,0,0.08);
+        }
+        #dashboard-routing-mapa .map-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #ff9800;
+            margin-bottom: 0.7em;
+        }
+        </style>
+        <div id='dashboard-routing-mapa'>
+          <div class='map-box'>
+            <div class='map-title'>Mapa da Roteirização</div>
+        """, unsafe_allow_html=True)
+        mapa = criar_mapa_rotas(pedidos_rota, rotas=[[i for i in range(len(pedidos_rota))]], partida_coords=(-23.0838, -47.1336))
+        folium_static(mapa, width=1200, height=500)
+        st.markdown("</div></div>", unsafe_allow_html=True)
 
 def exportar_rotas_para_planilhas(pedidos_df, rotas, pasta_saida='src/database/rotas_exportadas'):
     os.makedirs(pasta_saida, exist_ok=True)

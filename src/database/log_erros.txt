@@ -1,3 +1,9 @@
 2025-04-17 12:31:16.436459 - Erro ao realizar a roteirização. Verifique os dados e tente novamente. - list index out of range
 2025-04-17 12:31:20.182097 - Erro ao realizar a roteirização. Verifique os dados e tente novamente. - list index out of range
 2025-04-17 12:31:39.453785 - Erro ao realizar a roteirização. Verifique os dados e tente novamente. - list index out of range
+2025-04-17 12:41:40.008535 - Erro ao realizar a roteirização. Verifique os dados e tente novamente. - No columns to parse from file
+2025-04-17 12:41:52.608313 - Erro ao realizar a roteirização. Verifique os dados e tente novamente. - list index out of range
+2025-04-17 12:41:58.401901 - Erro ao realizar a roteirização. Verifique os dados e tente novamente. - list index out of range
+2025-04-17 12:42:01.761750 - Erro ao realizar a roteirização. Verifique os dados e tente novamente. - list index out of range
+2025-04-17 12:42:05.428111 - Erro ao realizar a roteirização. Verifique os dados e tente novamente. - list index out of range
+2025-04-17 12:43:05.453211 - Erro ao realizar a roteirização. Verifique os dados e tente novamente. - list index out of range
