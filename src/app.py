@@ -1,11 +1,11 @@
 import streamlit as st
+st.set_page_config(page_title="Roteirizador de Entregas", layout="wide")
 from dashboard_frota import dashboard_frota
 from dashboard_pedidos import dashboard_pedidos
 from dashboard_ia import dashboard_ia
 from dashboard_routing import dashboard_routing
 
 def main():
-    st.set_page_config(page_title="Roteirizador de Entregas", layout="wide")
     st.sidebar.title("Menu")
     menu = st.sidebar.radio("Escolha uma opção:", ("Dashboard Frota", "Dashboard Pedidos", "Dashboard Routing", "Dashboard IA"))
 
