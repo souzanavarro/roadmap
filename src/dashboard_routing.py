@@ -91,7 +91,11 @@ def dashboard_routing():
                 rotas = resolver_vrp(pedidos_df, frota_df)
                 st.success("Roteirização VRP concluída e salva no histórico!")
             elif usar_tsp:
-                st.info("Função TSP ainda não implementada neste dashboard.")
+                from routing import tsp_nearest_neighbor
+                partida_coords = (-23.0838, -47.1336)
+                rota_tsp = tsp_nearest_neighbor(pedidos_df, partida_coords)
+                rotas = [rota_tsp]
+                st.success("Roteirização TSP concluída e salva no histórico!")
             else:
                 st.warning("Selecione uma opção de roteirização.")
 
@@ -113,7 +117,10 @@ def dashboard_routing():
                 if len(rota) == 0:
                     continue
                 pedidos_rota = pedidos_df.iloc[rota].copy()
-                pedidos_rota['Placa'] = frota_df.iloc[veiculo_id % len(frota_df)]['Placa']
+                if usar_tsp:
+                    pedidos_rota['Placa'] = 'TSP'
+                else:
+                    pedidos_rota['Placa'] = frota_df.iloc[veiculo_id % len(frota_df)]['Placa']
                 pedidos_rota['Veiculo'] = veiculo_id + 1
                 pedidos_rota['Data Roteirizacao'] = data_roteirizacao
                 historico.append(pedidos_rota)
@@ -134,9 +141,10 @@ def dashboard_routing():
         st.info("Nenhuma roteirização foi realizada ainda. Clique em 'Roteirizar Pedidos' para começar.")
         return
     # Mostrar apenas o que está no histórico
-    veiculos = historico_df['Veiculo'].unique()
-    veiculos_opcoes = [f"Veículo {v} - Placa: {p}" for v, p in zip(historico_df['Veiculo'], historico_df['Placa'])]
-    veiculo_idx_map = {opcao: v for opcao, v in zip(veiculos_opcoes, veiculos)}
+    historico_df['Placa'] = historico_df['Placa'].astype(str)
+    veiculos_unicos = historico_df.drop_duplicates(subset=['Veiculo', 'Placa'])[['Veiculo', 'Placa']]
+    veiculos_opcoes = [f"Veículo {v} - Placa: {p}" for v, p in zip(veiculos_unicos['Veiculo'], veiculos_unicos['Placa'])]
+    veiculo_idx_map = {opcao: v for opcao, v in zip(veiculos_opcoes, veiculos_unicos['Veiculo'])}
     veiculo_selecionado = st.selectbox(
         "Selecione o veículo para visualizar a rota:",
         options=veiculos_opcoes
@@ -147,6 +155,7 @@ def dashboard_routing():
     if pedidos_rota.empty:
         st.info("Este veículo não possui pedidos alocados.")
     else:
+        st.write(f"### Veículo: {pedidos_rota['Placa'].iloc[0]} | Total de Pedidos: {len(pedidos_rota)}")
         st.dataframe(pedidos_rota, use_container_width=True)
         from routing import criar_mapa_rotas
         from streamlit_folium import folium_static
