@@ -37,15 +37,15 @@ def dashboard_ia():
             ia_df['Endereço Completo'] = ia_df['Endereço de Entrega'] + ', ' + ia_df['Bairro de Entrega'] + ', ' + ia_df['Cidade de Entrega']
         # Obter coordenadas se não existirem
         if 'Latitude' not in ia_df.columns or 'Longitude' not in ia_df.columns or ia_df['Latitude'].isnull().any() or ia_df['Longitude'].isnull().any():
-            st.info("Obtendo coordenadas para os endereços...")
-            coordenadas_salvas = {}
-            api_key = "6f522c67add14152926990afbe127384"
-            def get_coords(row):
-                lat, lon = obter_coordenadas_com_fallback(row['Endereço Completo'], coordenadas_salvas)
-                return pd.Series({'Latitude': lat, 'Longitude': lon})
-            coords = ia_df.apply(get_coords, axis=1)
-            ia_df['Latitude'] = coords['Latitude']
-            ia_df['Longitude'] = coords['Longitude']
+            st.warning("Sua planilha não possui coordenadas. Como o volume é muito grande, recomendamos obter as coordenadas em lotes menores (ex: 1000 por vez) para não exceder limites das APIs gratuitas. Você pode usar ferramentas como Google Maps, QGIS ou geocodificação em massa para gerar as coordenadas antes do upload.")
+            st.info("Se quiser tentar mesmo assim, clique no botão abaixo. O processo pode ser demorado e pode falhar se atingir o limite das APIs.")
+            if st.button("Tentar obter coordenadas automaticamente (pode ser lento)"):
+                coordenadas_salvas = {}
+                def get_coords(row):
+                    lat, lon = obter_coordenadas_com_fallback(row['Endereço Completo'], coordenadas_salvas)
+                    return pd.Series({'Latitude': lat, 'Longitude': lon})
+                ia_df[['Latitude', 'Longitude']] = ia_df.apply(get_coords, axis=1)
+                st.success("Coordenadas obtidas (parcialmente ou totalmente). Confira a planilha!")
         st.dataframe(ia_df)
         # Salvar no database local na pasta src/database
         os.makedirs(os.path.join("src", "database"), exist_ok=True)
