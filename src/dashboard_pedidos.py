@@ -3,6 +3,29 @@ import pandas as pd
 import os
 from geocode import obter_coordenadas_com_fallback
 
+st.header(":clipboard: Dashboard de Pedidos")
+st.markdown("""
+<style>
+.pedidos-title {
+    font-size: 2.2em;
+    font-weight: bold;
+    color: #43a047;
+    margin-bottom: 0.2em;
+}
+.pedidos-box {
+    background: linear-gradient(90deg, #e8f5e9 0%, #c8e6c9 100%);
+    border-radius: 12px;
+    padding: 1.5em 2em;
+    margin-bottom: 1.5em;
+    box-shadow: 0 2px 8px rgba(67,160,71,0.08);
+}
+</style>
+<div class='pedidos-box'>
+    <div class='pedidos-title'>Gestão de Pedidos</div>
+    <span>Gerencie, edite e visualize seus pedidos de forma prática e visual.</span>
+</div>
+""", unsafe_allow_html=True)
+
 def dashboard_pedidos():
     st.header("Dashboard de Pedidos")
     pedidos_file = st.file_uploader("Envie a planilha de pedidos (CSV, XLSX, XLSM)", type=["csv", "xlsx", "xlsm"], key="pedidos")
