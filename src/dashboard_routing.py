@@ -3,6 +3,15 @@ import pandas as pd
 import os
 from routing import resolver_vrp
 
+def tratar_erro(msg, exception=None):
+    import streamlit as st
+    import datetime
+    st.error(msg)
+    if exception:
+        log_path = "src/database/log_erros.txt"
+        with open(log_path, "a") as f:
+            f.write(f"{datetime.datetime.now()} - {msg} - {str(exception)}\n")
+
 def dashboard_routing():
     st.header("Dashboard de Roteirização de Pedidos")
 
@@ -90,7 +99,7 @@ def dashboard_routing():
             historico_df.to_csv(historico_path, index=False)
 
     except Exception as e:
-        st.error(f"Erro ao realizar a roteirização: {e}")
+        tratar_erro("Erro ao realizar a roteirização. Verifique os dados e tente novamente.", e)
 
 def exportar_rotas_para_planilhas(pedidos_df, rotas, pasta_saida='src/database/rotas_exportadas'):
     os.makedirs(pasta_saida, exist_ok=True)
