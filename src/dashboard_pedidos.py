@@ -155,6 +155,14 @@ def dashboard_pedidos():
         pedidos_df.to_csv(pedidos_db_path, index=False)
         st.success(f"Pedidos salvos no banco de dados local: {pedidos_db_path}")
         df_map = pedidos_df
+        # Agrupamento por região (clusters)
+        st.subheader("Agrupar pedidos por região (clusters)")
+        n_clusters = st.number_input('Número de regiões (clusters)', min_value=1, max_value=20, value=3, step=1)
+        if st.button('Agrupar por Região'):
+            from routing import agrupar_por_regiao
+            pedidos_df = agrupar_por_regiao(pedidos_df, n_clusters)
+            st.success(f'Pedidos agrupados em {n_clusters} regiões!')
+            st.dataframe(pedidos_df)
         # Checagem de frota disponível
         if frota_disponivel is not None and frota_disponivel.empty:
             st.error("Não há veículos disponíveis na frota para roterização!")
