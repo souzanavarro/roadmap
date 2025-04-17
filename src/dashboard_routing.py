@@ -49,13 +49,25 @@ def dashboard_routing():
 
     # Opções de restrições e parâmetros avançados
     with st.expander('Restrições e Parâmetros Avançados'):
-        capacidade_max = st.number_input('Capacidade máxima por veículo (kg)', min_value=1, value=1000)
+        modo_capacidade = st.radio('Como considerar a capacidade dos veículos?', [
+            'Capacidade máxima fixa (kg)',
+            'Capacidade individual da frota (%)'
+        ], index=0)
+        if modo_capacidade == 'Capacidade máxima fixa (kg)':
+            capacidade_max = st.number_input('Capacidade máxima por veículo (kg)', min_value=1, value=1000)
+            percentual_utilizacao = 100
+        else:
+            percentual_utilizacao = st.slider('Percentual de utilização da capacidade de cada caminhão (%)', min_value=10, max_value=100, value=100, step=5)
+            capacidade_max = None
         usar_janela_tempo = st.checkbox('Usar janelas de tempo para entregas?')
         if usar_janela_tempo:
             janela_inicio = st.time_input('Início da janela de entrega', value=None)
             janela_fim = st.time_input('Fim da janela de entrega', value=None)
         tipo_otimizacao = st.selectbox('Tipo de otimização', ['Menor distância', 'Menor tempo'])
         prioridade_alocacao = st.selectbox('Prioridade de alocação', ['Capacidade', 'Região', 'Capacidade + Região', 'Tipo de carga'])
+        n_clusters = 3  # valor padrão
+        if 'Região' in prioridade_alocacao:
+            n_clusters = st.slider('Quantidade de regiões (clusters)', min_value=1, max_value=5, value=3)
 
     # Carregar pedidos e frota
     pedidos_db_path = "src/database/database_pedidos.csv"
@@ -99,12 +111,20 @@ def dashboard_routing():
         try:
             if usar_vrp:
                 if prioridade_alocacao == 'Capacidade + Região':
-                    pedidos_alocados_df = alocacao_prioridade_capacidade_regiao(pedidos_df, frota_df, n_clusters=5)
+                    pedidos_alocados_df = alocacao_prioridade_capacidade_regiao(pedidos_df, frota_df, n_clusters=n_clusters)
                     st.success("Alocação por Capacidade + Região concluída! Veja a tabela abaixo.")
                     st.dataframe(pedidos_alocados_df, use_container_width=True)
                     return
+                elif prioridade_alocacao == 'Região':
+                    pedidos_alocados_df = alocacao_prioridade_capacidade_regiao(pedidos_df, frota_df, n_clusters=n_clusters)
+                    st.success("Alocação por Região concluída! Veja a tabela abaixo.")
+                    st.dataframe(pedidos_alocados_df, use_container_width=True)
+                    return
                 else:
-                    rotas = resolver_vrp(pedidos_df, frota_df, capacidade_max=capacidade_max)
+                    if modo_capacidade == 'Capacidade máxima fixa (kg)':
+                        rotas = resolver_vrp(pedidos_df, frota_df, capacidade_max=capacidade_max)
+                    else:
+                        rotas = resolver_vrp(pedidos_df, frota_df, percentual_utilizacao=percentual_utilizacao)
                     st.success("Roteirização VRP concluída e salva no histórico!")
             elif usar_tsp:
                 from routing import tsp_nearest_neighbor
