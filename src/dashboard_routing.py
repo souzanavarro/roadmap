@@ -16,13 +16,13 @@ def dashboard_routing():
     st.header(":bar_chart: Dashboard de Roteirização")
     st.markdown("""
     <style>
-    .routing-title {
+    #dashboard-routing .routing-title {
         font-size: 2.2em;
         font-weight: bold;
         color: #ff9800;
         margin-bottom: 0.2em;
     }
-    .routing-box {
+    #dashboard-routing .routing-box {
         background: linear-gradient(90deg, #fff3e0 0%, #ffe0b2 100%);
         border-radius: 12px;
         padding: 1.5em 2em;
@@ -30,10 +30,11 @@ def dashboard_routing():
         box-shadow: 0 2px 8px rgba(255,152,0,0.08);
     }
     </style>
-    <div class='routing-box'>
-        <div class='routing-title'>Painel de Roteirização</div>
-        <span>Visualize, analise e execute a roteirização de pedidos de forma eficiente e visual.</span>
-    </div>
+    <div id='dashboard-routing'>
+      <div class='routing-box'>
+          <div class='routing-title'>Painel de Roteirização</div>
+          <span>Visualize, analise e execute a roteirização de pedidos de forma eficiente e visual.</span>
+      </div>
     """, unsafe_allow_html=True)
 
     # Opções de roteirização (radio button)

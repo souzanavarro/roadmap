@@ -6,13 +6,13 @@ def dashboard_frota():
     st.header(":truck: Dashboard da Frota")
     st.markdown("""
     <style>
-    .frota-title {
+    #dashboard-frota .frota-title {
         font-size: 2.2em;
         font-weight: bold;
         color: #1a73e8;
         margin-bottom: 0.2em;
     }
-    .frota-box {
+    #dashboard-frota .frota-box {
         background: linear-gradient(90deg, #e3f2fd 0%, #bbdefb 100%);
         border-radius: 12px;
         padding: 1.5em 2em;
@@ -20,10 +20,11 @@ def dashboard_frota():
         box-shadow: 0 2px 8px rgba(26,115,232,0.08);
     }
     </style>
-    <div class='frota-box'>
-        <div class='frota-title'>Gestão da Frota</div>
-        <span>Gerencie, edite e visualize sua frota de veículos de forma prática e visual.</span>
-    </div>
+    <div id='dashboard-frota'>
+      <div class='frota-box'>
+          <div class='frota-title'>Gestão da Frota</div>
+          <span>Gerencie, edite e visualize sua frota de veículos de forma prática e visual.</span>
+      </div>
     """, unsafe_allow_html=True)
     
     frota_db_path = os.path.join("src", "database", "database_frota.csv")

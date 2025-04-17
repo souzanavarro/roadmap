@@ -7,13 +7,13 @@ def dashboard_ia():
     st.header(":robot_face: Dashboard IA - Base de Roteirizações")
     st.markdown("""
     <style>
-    .ia-title {
+    #dashboard-ia .ia-title {
         font-size: 2.2em;
         font-weight: bold;
         color: #8e24aa;
         margin-bottom: 0.2em;
     }
-    .ia-box {
+    #dashboard-ia .ia-box {
         background: linear-gradient(90deg, #f3e5f5 0%, #ce93d8 100%);
         border-radius: 12px;
         padding: 1.5em 2em;
@@ -21,10 +21,11 @@ def dashboard_ia():
         box-shadow: 0 2px 8px rgba(142,36,170,0.08);
     }
     </style>
-    <div class='ia-box'>
-        <div class='ia-title'>Base de Roteirizações Inteligente</div>
-        <span>Faça upload, visualize e analise roteirizações geradas por IA de forma prática e visual.</span>
-    </div>
+    <div id='dashboard-ia'>
+      <div class='ia-box'>
+          <div class='ia-title'>Base de Roteirizações Inteligente</div>
+          <span>Faça upload, visualize e analise roteirizações geradas por IA de forma prática e visual.</span>
+      </div>
     """, unsafe_allow_html=True)
     ia_file = st.file_uploader("Envie a planilha de pedidos já roteirizada (CSV, XLSX, XLSM)", type=["csv", "xlsx", "xlsm"], key="ia")
     if ia_file:

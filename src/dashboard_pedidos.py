@@ -5,47 +5,48 @@ from geocode import obter_coordenadas_com_fallback
 
 st.header(":clipboard: Dashboard de Pedidos")
 st.markdown("""
-<style>
-.pedidos-title {
-    font-size: 2.2em;
-    font-weight: bold;
-    color: #43a047;
-    margin-bottom: 0.2em;
-}
-.pedidos-box {
-    background: linear-gradient(90deg, #e8f5e9 0%, #c8e6c9 100%);
-    border-radius: 12px;
-    padding: 1.5em 2em;
-    margin-bottom: 1.5em;
-    box-shadow: 0 2px 8px rgba(67,160,71,0.08);
-}
-.loading-coords {
-    display: flex;
-    align-items: center;
-    gap: 1em;
-    font-size: 1.2em;
-    color: #388e3c;
-    font-weight: bold;
-    margin-bottom: 1em;
-}
-.loading-spinner {
-    border: 4px solid #c8e6c9;
-    border-top: 4px solid #43a047;
-    border-radius: 50%;
-    width: 32px;
-    height: 32px;
-    animation: spin 1s linear infinite;
-}
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-</style>
-<div class='pedidos-box'>
-    <div class='pedidos-title'>Gestão de Pedidos</div>
-    <span>Gerencie, edite e visualize seus pedidos de forma prática e visual.</span>
-</div>
-""", unsafe_allow_html=True)
+    <style>
+    #dashboard-pedidos .pedidos-title {
+        font-size: 2.2em;
+        font-weight: bold;
+        color: #43a047;
+        margin-bottom: 0.2em;
+    }
+    #dashboard-pedidos .pedidos-box {
+        background: linear-gradient(90deg, #e8f5e9 0%, #c8e6c9 100%);
+        border-radius: 12px;
+        padding: 1.5em 2em;
+        margin-bottom: 1.5em;
+        box-shadow: 0 2px 8px rgba(67,160,71,0.08);
+    }
+    #dashboard-pedidos .loading-coords {
+        display: flex;
+        align-items: center;
+        gap: 1em;
+        font-size: 1.2em;
+        color: #388e3c;
+        font-weight: bold;
+        margin-bottom: 1em;
+    }
+    #dashboard-pedidos .loading-spinner {
+        border: 4px solid #c8e6c9;
+        border-top: 4px solid #43a047;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    </style>
+    <div id='dashboard-pedidos'>
+      <div class='pedidos-box'>
+          <div class='pedidos-title'>Gestão de Pedidos</div>
+          <span>Gerencie, edite e visualize seus pedidos de forma prática e visual.</span>
+      </div>
+    """, unsafe_allow_html=True)
 
 def dashboard_pedidos():
     st.header("Dashboard de Pedidos")
