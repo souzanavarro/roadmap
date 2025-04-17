@@ -81,6 +81,7 @@ def dashboard_routing():
         n_clusters = 3  # valor padrão
         regioes_por_veiculo = 1
         if 'Região' in prioridade_alocacao:
+            # Determinar total de regiões (clusters)
             if 'Região' in pedidos_df.columns:
                 total_regioes = pedidos_df['Região'].nunique()
             else:
@@ -88,7 +89,11 @@ def dashboard_routing():
             percentual_regioes = st.slider('Percentual de regiões (clusters)', min_value=5, max_value=100, value=10, step=5, help='Percentual de clusters em relação ao total de regiões distintas nos pedidos')
             n_clusters = max(1, int(total_regioes * percentual_regioes / 100))
             st.info(f'Total de regiões (clusters) calculado: {n_clusters}')
-            regioes_por_veiculo = st.slider('Máximo de regiões por veículo', min_value=1, max_value=n_clusters, value=1)
+            # CORREÇÃO: Slider só aparece se n_clusters > 1
+            if n_clusters > 1:
+                regioes_por_veiculo = st.slider('Máximo de regiões por veículo', min_value=1, max_value=n_clusters, value=1)
+            else:
+                regioes_por_veiculo = 1
 
     if pedidos_df.empty or frota_df.empty:
         st.error("Os dados de pedidos ou frota estão vazios.")
@@ -119,6 +124,11 @@ def dashboard_routing():
     rotas = None  # Inicializa rotas
     if st.button("Roteirizar Pedidos", type="primary"):
         try:
+            # Antes de roteirizar, garantir que as regiões estão separadas por coordenadas
+            if 'Região' not in pedidos_df.columns or pedidos_df['Região'].nunique() < n_clusters:
+                from routing import agrupar_por_regiao
+                pedidos_df = agrupar_por_regiao(pedidos_df, n_clusters)
+
             if usar_vrp:
                 if prioridade_alocacao == 'Capacidade + Região':
                     pedidos_alocados_df = alocacao_prioridade_capacidade_regiao(pedidos_df, frota_df, n_clusters=n_clusters)
