@@ -3,8 +3,9 @@ import pandas as pd
 import os
 from geocode import obter_coordenadas_com_fallback
 
-st.header(":clipboard: Dashboard de Pedidos")
-st.markdown("""
+def dashboard_pedidos():
+    st.header(":clipboard: Dashboard de Pedidos")
+    st.markdown("""
     <style>
     #dashboard-pedidos .pedidos-title {
         font-size: 2.2em;
@@ -69,9 +70,6 @@ st.markdown("""
           <div class='pedidos-help'>Dica: Faça upload da planilha de pedidos, confira as coordenadas e avance para a roteirização!</div>
       </div>
     """, unsafe_allow_html=True)
-
-def dashboard_pedidos():
-    st.header("Dashboard de Pedidos")
     pedidos_file = st.file_uploader("Envie a planilha de pedidos (CSV, XLSX, XLSM)", type=["csv", "xlsx", "xlsm"], key="pedidos")
     # Carregar frota disponível
     frota_db_path = os.path.join("src", "database", "database_frota.csv")
@@ -139,9 +137,6 @@ def dashboard_pedidos():
                 coord_df = pd.concat([coord_db, coord_df]).drop_duplicates(subset=['Endereço'], keep='last')
             coord_df.to_csv(coord_db_path, index=False)
             st.success("Coordenadas obtidas com sucesso!")
-            if st.button("Ir para Roteirização", type="primary"):
-                st.session_state["main_menu_radio"] = "Dashboard Routing"
-                st.experimental_rerun()
         st.dataframe(pedidos_df)
         # Salvar no database local na pasta src/database
         os.makedirs(os.path.join("src", "database"), exist_ok=True)
@@ -199,3 +194,6 @@ def dashboard_pedidos():
         folium_static(m, width=1200, height=500)
         st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir os pedidos no mapa.")
     st.markdown("</div></div>", unsafe_allow_html=True)
+    if st.button("Ir para Roteirização", type="primary"):
+        st.session_state["main_menu_radio"] = "Dashboard Routing"
+        st.experimental_rerun()
