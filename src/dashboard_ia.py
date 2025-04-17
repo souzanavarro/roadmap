@@ -20,7 +20,7 @@ def dashboard_ia():
             coordenadas_salvas = {}
             api_key = "6f522c67add14152926990afbe127384"
             def get_coords(row):
-                lat, lon = obter_coordenadas_com_fallback(row['Endereço Completo'], coordenadas_salvas, api_key)
+                lat, lon = obter_coordenadas_com_fallback(row['Endereço Completo'], coordenadas_salvas)
                 return pd.Series({'Latitude': lat, 'Longitude': lon})
             coords = ia_df.apply(get_coords, axis=1)
             ia_df['Latitude'] = coords['Latitude']

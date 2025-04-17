@@ -43,7 +43,7 @@ def dashboard_pedidos():
                             "6f522c67add14152926990afbe127384",
                             "6c2d02cafb2e4b49aa3485a62262e54b"
                         ]
-                        lat, lon = obter_coordenadas_com_fallback(endereco, coordenadas_salvas, api_keys)
+                        lat, lon = obter_coordenadas_com_fallback(endereco, coordenadas_salvas)
                         # Trata caso a API não retorne resultado
                         if lat is None or lon is None:
                             st.warning(f"Não foi possível obter coordenadas para: {endereco}. Deixando valores como nulos.")
@@ -98,10 +98,10 @@ def dashboard_pedidos():
         for _, row in df_map_valid.iterrows():
             folium.Marker([row['Latitude'], row['Longitude']], popup=row.get('Nome Cliente', '')).add_to(m)
         folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-        folium_static(m, width=1200, height=500)
+        folium_static(m, width=1600, height=700)
     else:
         st.subheader("Mapa dos Pedidos")
         m = folium.Map(location=local_partida, zoom_start=10)
         folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-        folium_static(m, width=1200, height=500)
+        folium_static(m, width=1600, height=700)
         st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir os pedidos no mapa.")
