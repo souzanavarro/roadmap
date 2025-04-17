@@ -314,3 +314,177 @@ def roteirizacao_manual(pedidos_df):
     st.write("Arraste para ordenar os pedidos manualmente:")
     pedidos_df = st.data_editor(pedidos_df, use_container_width=True, num_rows="dynamic")
     return pedidos_df
+
+def pre_processamento_frota_regiao(pedidos_df, frota_df, n_clusters=5):
+    """
+    Pré-processa os pedidos agrupando por região, calcula o peso total de cada região,
+    seleciona veículos suficientes para cada região e distribui os pedidos respeitando capacidade e sem repetir clientes.
+    Retorna um DataFrame com coluna 'Veiculo' e 'Placa' já preenchidas.
+    """
+    from sklearn.cluster import KMeans
+    import numpy as np
+    # Agrupar por região
+    pedidos_df = pedidos_df.copy()
+    pedidos_df = pedidos_df.dropna(subset=['Latitude', 'Longitude', 'Peso dos Itens'])
+    pedidos_df = pedidos_df[pedidos_df['Peso dos Itens'] > 0]
+    pedidos_df['Regiao'] = KMeans(n_clusters=n_clusters, random_state=42).fit_predict(pedidos_df[['Latitude', 'Longitude']])
+    pedidos_df['Veiculo'] = None
+    pedidos_df['Placa'] = None
+    frota_df = frota_df.sort_values('Capac. Kg', ascending=False).reset_index(drop=True)
+    veiculo_global = 1
+    for regiao in pedidos_df['Regiao'].unique():
+        pedidos_regiao = pedidos_df[pedidos_df['Regiao'] == regiao].copy()
+        peso_total = pedidos_regiao['Peso dos Itens'].sum()
+        veiculos_necessarios = []
+        peso_restante = peso_total
+        frota_disp = frota_df.copy()
+        while peso_restante > 0 and not frota_disp.empty:
+            veiculo = frota_disp.iloc[0]
+            veiculos_necessarios.append(veiculo)
+            peso_restante -= veiculo['Capac. Kg']
+            frota_disp = frota_disp.iloc[1:]
+        if peso_restante > 0:
+            st.warning(f"Região {regiao} excede a capacidade da frota disponível! Alguns pedidos podem ficar sem alocação.")
+        # Distribuir pedidos entre veículos sem repetir clientes
+        pedidos_regiao = pedidos_regiao.sort_values('Peso dos Itens', ascending=False)
+        clientes_alocados = set()
+        idx_pedido = 0
+        for veiculo_idx, veiculo in enumerate(veiculos_necessarios):
+            capacidade_kg = veiculo['Capac. Kg']
+            capacidade_cx = veiculo['Capac. Cx'] if 'Capac. Cx' in veiculo else np.inf
+            peso_usado = 0
+            cx_usado = 0
+            while idx_pedido < len(pedidos_regiao):
+                pedido = pedidos_regiao.iloc[idx_pedido]
+                cod_cliente = pedido['Cód. Cliente'] if 'Cód. Cliente' in pedido else pedido['Nome Cliente']
+                if cod_cliente in clientes_alocados:
+                    idx_pedido += 1
+                    continue
+                if (peso_usado + pedido['Peso dos Itens'] <= capacidade_kg) and (cx_usado + pedido.get('Qtde. dos Itens', 0) <= capacidade_cx):
+                    pedidos_df_idx = pedidos_regiao.index[idx_pedido]
+                    pedidos_df.at[pedidos_df_idx, 'Veiculo'] = veiculo_global
+                    pedidos_df.at[pedidos_df_idx, 'Placa'] = veiculo['Placa']
+                    peso_usado += pedido['Peso dos Itens']
+                    cx_usado += pedido.get('Qtde. dos Itens', 0)
+                    clientes_alocados.add(cod_cliente)
+                    idx_pedido += 1
+                else:
+                    break
+            veiculo_global += 1
+    return pedidos_df
+
+import numpy as np
+from sklearn.cluster import KMeans
+
+def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade_col=None, clientes_vip=None, entregas_urgentes=None):
+    """
+    Pré-processamento inteligente para roteirização:
+    - Agrupa pedidos por região (KMeans)
+    - Calcula peso total de cada região
+    - Seleciona veículos suficientes para cada região, priorizando maior capacidade
+    - Distribui pedidos entre veículos, sem repetir clientes
+    - Permite priorizar clientes VIP ou entregas urgentes
+    - Valida restrições e sugere ações ao usuário
+    - Retorna DataFrame com colunas 'Veiculo', 'Placa', 'Regiao', 'Prioridade', 'Status Alocacao'
+    - Exibe resumo visual do aproveitamento da frota
+    """
+    import streamlit as st
+    pedidos_df = pedidos_df.copy()
+    frota_df = frota_df.copy()
+    # Checagem de dados
+    if pedidos_df.empty or frota_df.empty:
+        st.error("Pedidos ou frota vazios!")
+        return pedidos_df
+    if 'Peso dos Itens' not in pedidos_df.columns or 'Qtde. dos Itens' not in pedidos_df.columns:
+        st.error("Pedidos precisam ter as colunas 'Peso dos Itens' e 'Qtde. dos Itens'.")
+        return pedidos_df
+    if 'Capac. Kg' not in frota_df.columns or 'Capac. Cx' not in frota_df.columns:
+        st.error("Frota precisa ter as colunas 'Capac. Kg' e 'Capac. Cx'.")
+        return pedidos_df
+    pedidos_df = pedidos_df.dropna(subset=['Latitude', 'Longitude', 'Peso dos Itens', 'Qtde. dos Itens'])
+    pedidos_df = pedidos_df[(pedidos_df['Peso dos Itens'] > 0) & (pedidos_df['Qtde. dos Itens'] > 0)]
+    frota_df = frota_df[(frota_df['Capac. Kg'] > 0) & (frota_df['Capac. Cx'] > 0)]
+    if pedidos_df.empty ou frota_df.empty:
+        st.error("Pedidos ou frota sem dados válidos!")
+        return pedidos_df
+    # Agrupamento por região
+    pedidos_df['Regiao'] = KMeans(n_clusters=n_clusters, random_state=42).fit_predict(pedidos_df[['Latitude', 'Longitude']])
+    pedidos_df['Veiculo'] = None
+    pedidos_df['Placa'] = None
+    pedidos_df['Prioridade'] = 'Normal'
+    pedidos_df['Status Alocacao'] = 'Não Alocado'
+    if prioridade_col and prioridade_col in pedidos_df.columns:
+        pedidos_df['Prioridade'] = pedidos_df[prioridade_col]
+    if clientes_vip:
+        pedidos_df.loc[pedidos_df['Cód. Cliente'].isin(clientes_vip), 'Prioridade'] = 'VIP'
+    if entregas_urgentes:
+        pedidos_df.loc[pedidos_df['Cód. Cliente'].isin(entregas_urgentes), 'Prioridade'] = 'Urgente'
+    resumo_frota = []
+    veiculo_global = 1
+    pedidos_nao_alocados = []
+    for regiao in pedidos_df['Regiao'].unique():
+        pedidos_regiao = pedidos_df[pedidos_df['Regiao'] == regiao].copy()
+        peso_total = pedidos_regiao['Peso dos Itens'].sum()
+        cx_total = pedidos_regiao['Qtde. dos Itens'].sum()
+        # Seleciona veículos suficientes para a região
+        frota_disp = frota_df.copy().sort_values('Capac. Kg', ascending=False).reset_index(drop=True)
+        veiculos_necessarios = []
+        peso_restante = peso_total
+        cx_restante = cx_total
+        while (peso_restante > 0 ou cx_restante > 0) and not frota_disp.empty:
+            veiculo = frota_disp.iloc[0]
+            veiculos_necessarios.append(veiculo)
+            peso_restante -= veiculo['Capac. Kg']
+            cx_restante -= veiculo['Capac. Cx']
+            frota_disp = frota_disp.iloc[1:]
+        if peso_restante > 0 ou cx_restante > 0:
+            st.warning(f"Região {regiao} excede a capacidade da frota disponível! Alguns pedidos podem ficar sem alocação.")
+        # Distribuição de pedidos entre veículos
+        pedidos_regiao = pedidos_regiao.sort_values(['Prioridade', 'Peso dos Itens'], ascending=[True, False])
+        clientes_alocados = set()
+        idx_pedido = 0
+        for veiculo_idx, veiculo in enumerate(veiculos_necessarios):
+            capacidade_kg = veiculo['Capac. Kg']
+            capacidade_cx = veiculo['Capac. Cx']
+            peso_usado = 0
+            cx_usado = 0
+            while idx_pedido < len(pedidos_regiao):
+                pedido = pedidos_regiao.iloc[idx_pedido]
+                cod_cliente = pedido['Cód. Cliente'] if 'Cód. Cliente' in pedido else pedido['Nome Cliente']
+                if cod_cliente in clientes_alocados:
+                    idx_pedido += 1
+                    continue
+                if (peso_usado + pedido['Peso dos Itens'] <= capacidade_kg) and (cx_usado + pedido['Qtde. dos Itens'] <= capacidade_cx):
+                    pedidos_df_idx = pedidos_regiao.index[idx_pedido]
+                    pedidos_df.at[pedidos_df_idx, 'Veiculo'] = veiculo_global
+                    pedidos_df.at[pedidos_df_idx, 'Placa'] = veiculo['Placa']
+                    pedidos_df.at[pedidos_df_idx, 'Status Alocacao'] = 'Alocado'
+                    peso_usado += pedido['Peso dos Itens']
+                    cx_usado += pedido['Qtde. dos Itens']
+                    clientes_alocados.add(cod_cliente)
+                    idx_pedido += 1
+                else:
+                    break
+            resumo_frota.append({
+                'Regiao': regiao,
+                'Veiculo': veiculo_global,
+                'Placa': veiculo['Placa'],
+                'Peso Alocado': peso_usado,
+                'Caixas Alocadas': cx_usado,
+                'Capacidade Peso': capacidade_kg,
+                'Capacidade Caixas': capacidade_cx,
+                'Aproveitamento Peso (%)': round(100*peso_usado/capacidade_kg,1) if capacidade_kg else 0,
+                'Aproveitamento Caixas (%)': round(100*cx_usado/capacidade_cx,1) if capacidade_cx else 0
+            })
+            veiculo_global += 1
+        # Marcar pedidos não alocados
+        for idx in pedidos_regiao.index:
+            if pedidos_df.at[idx, 'Status Alocacao'] != 'Alocado':
+                pedidos_nao_alocados.append(idx)
+    # Resumo visual do aproveitamento da frota
+    resumo_frota_df = pd.DataFrame(resumo_frota)
+    st.subheader("Resumo do Aproveitamento da Frota")
+    st.dataframe(resumo_frota_df, use_container_width=True)
+    if pedidos_nao_alocados:
+        st.warning(f"{len(pedidos_nao_alocados)} pedidos não foram alocados. Considere aumentar a frota ou dividir a entrega em mais dias.")
+    return pedidos_df
