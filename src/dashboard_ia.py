@@ -81,16 +81,35 @@ def dashboard_ia():
     from streamlit_folium import folium_static
     import folium
     local_partida = [-23.0838, -47.1336]
+    st.markdown("""
+    <style>
+    #dashboard-ia-mapa .map-box {
+        background: linear-gradient(90deg, #f3e5f5 0%, #ce93d8 100%);
+        border-radius: 12px;
+        padding: 1.5em 2em;
+        margin-bottom: 2em;
+        box-shadow: 0 2px 8px rgba(142,36,170,0.08);
+    }
+    #dashboard-ia-mapa .map-title {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #8e24aa;
+        margin-bottom: 0.7em;
+    }
+    </style>
+    <div id='dashboard-ia-mapa'>
+      <div class='map-box'>
+        <div class='map-title'>Mapa dos Pedidos Roteirizados</div>
+    """, unsafe_allow_html=True)
     if not df_map.empty and 'Latitude' in df_map.columns and 'Longitude' in df_map.columns:
-        st.subheader("Mapa dos Pedidos Roteirizados")
         m = folium.Map(location=[df_map['Latitude'].mean(), df_map['Longitude'].mean()], zoom_start=10)
         for _, row in df_map.iterrows():
             folium.Marker([row['Latitude'], row['Longitude']], popup=row.get('Nome Cliente', '')).add_to(m)
         folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-        folium_static(m, width=1200, height=500)
+        folium_static(m, width="100%", height=500)
     else:
-        st.subheader("Mapa dos Pedidos Roteirizados")
         m = folium.Map(location=local_partida, zoom_start=10)
         folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-        folium_static(m, width=1200, height=500)
+        folium_static(m, width="100%", height=500)
         st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir o mapa.")
+    st.markdown("</div></div>", unsafe_allow_html=True)

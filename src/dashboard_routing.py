@@ -109,8 +109,29 @@ def dashboard_routing():
             # Exibir mapa da rota do veículo selecionado
             from routing import criar_mapa_rotas
             from streamlit_folium import folium_static
+            st.markdown("""
+            <style>
+            #dashboard-routing-mapa .map-box {
+                background: linear-gradient(90deg, #fff3e0 0%, #ffe0b2 100%);
+                border-radius: 12px;
+                padding: 1.5em 2em;
+                margin-bottom: 2em;
+                box-shadow: 0 2px 8px rgba(255,152,0,0.08);
+            }
+            #dashboard-routing-mapa .map-title {
+                font-size: 1.5em;
+                font-weight: bold;
+                color: #ff9800;
+                margin-bottom: 0.7em;
+            }
+            </style>
+            <div id='dashboard-routing-mapa'>
+              <div class='map-box'>
+                <div class='map-title'>Mapa da Roteirização</div>
+            """, unsafe_allow_html=True)
             mapa = criar_mapa_rotas(pedidos_rota, rotas=[[i for i in range(len(pedidos_rota))]], partida_coords=(-23.0838, -47.1336))
-            folium_static(mapa, width=1600, height=700)
+            folium_static(mapa, width="100%", height=500)
+            st.markdown("</div></div>", unsafe_allow_html=True)
 
             # Salvar histórico de roteirizações
             from datetime import datetime

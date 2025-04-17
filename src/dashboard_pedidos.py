@@ -142,19 +142,37 @@ def dashboard_pedidos():
     from streamlit_folium import folium_static
     import folium
     local_partida = [-23.0838, -47.1336]  # Coordenadas fixas de partida
+    st.markdown("""
+    <style>
+    #dashboard-pedidos-mapa .map-box {
+        background: linear-gradient(90deg, #e8f5e9 0%, #c8e6c9 100%);
+        border-radius: 12px;
+        padding: 1.5em 2em;
+        margin-bottom: 2em;
+        box-shadow: 0 2px 8px rgba(67,160,71,0.08);
+    }
+    #dashboard-pedidos-mapa .map-title {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #388e3c;
+        margin-bottom: 0.7em;
+    }
+    </style>
+    <div id='dashboard-pedidos-mapa'>
+      <div class='map-box'>
+        <div class='map-title'>Mapa dos Pedidos</div>
+    """, unsafe_allow_html=True)
     if not df_map.empty and 'Latitude' in df_map.columns and 'Longitude' in df_map.columns:
-        st.subheader("Mapa dos Pedidos")
-        # Filtra apenas linhas com coordenadas válidas
         df_map_valid = df_map.dropna(subset=['Latitude', 'Longitude'])
         m = folium.Map(location=[df_map_valid['Latitude'].mean() if not df_map_valid.empty else local_partida[0],
                                  df_map_valid['Longitude'].mean() if not df_map_valid.empty else local_partida[1]], zoom_start=10)
         for _, row in df_map_valid.iterrows():
             folium.Marker([row['Latitude'], row['Longitude']], popup=row.get('Nome Cliente', '')).add_to(m)
         folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-        folium_static(m, width=1600, height=700)
+        folium_static(m, width="100%", height=500)
     else:
-        st.subheader("Mapa dos Pedidos")
         m = folium.Map(location=local_partida, zoom_start=10)
         folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-        folium_static(m, width=1600, height=700)
+        folium_static(m, width="100%", height=500)
         st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir os pedidos no mapa.")
+    st.markdown("</div></div>", unsafe_allow_html=True)
