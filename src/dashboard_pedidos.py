@@ -11,13 +11,34 @@ st.markdown("""
         font-weight: bold;
         color: #43a047;
         margin-bottom: 0.2em;
+        letter-spacing: 1px;
+        text-shadow: 1px 1px 2px #c8e6c9;
     }
     #dashboard-pedidos .pedidos-box {
         background: linear-gradient(90deg, #e8f5e9 0%, #c8e6c9 100%);
-        border-radius: 12px;
-        padding: 1.5em 2em;
-        margin-bottom: 1.5em;
-        box-shadow: 0 2px 8px rgba(67,160,71,0.08);
+        border-radius: 16px;
+        padding: 2em 2.5em;
+        margin-bottom: 2em;
+        box-shadow: 0 4px 16px rgba(67,160,71,0.10);
+        border: 1.5px solid #a5d6a7;
+        transition: box-shadow 0.3s;
+    }
+    #dashboard-pedidos .pedidos-box:hover {
+        box-shadow: 0 8px 32px rgba(67,160,71,0.18);
+    }
+    #dashboard-pedidos .pedidos-desc {
+        font-size: 1.15em;
+        color: #388e3c;
+        margin-bottom: 0.5em;
+    }
+    #dashboard-pedidos .pedidos-help {
+        font-size: 1em;
+        color: #1b5e20;
+        background: #e8f5e9;
+        border-radius: 8px;
+        padding: 0.7em 1em;
+        margin-bottom: 1em;
+        border-left: 4px solid #43a047;
     }
     #dashboard-pedidos .loading-coords {
         display: flex;
@@ -44,7 +65,8 @@ st.markdown("""
     <div id='dashboard-pedidos'>
       <div class='pedidos-box'>
           <div class='pedidos-title'>Gestão de Pedidos</div>
-          <span>Gerencie, edite e visualize seus pedidos de forma prática e visual.</span>
+          <div class='pedidos-desc'>Gerencie, edite e visualize seus pedidos de forma prática, visual e moderna.</div>
+          <div class='pedidos-help'>Dica: Faça upload da planilha de pedidos, confira as coordenadas e avance para a roteirização!</div>
       </div>
     """, unsafe_allow_html=True)
 
@@ -118,7 +140,8 @@ def dashboard_pedidos():
             coord_df.to_csv(coord_db_path, index=False)
             st.success("Coordenadas obtidas com sucesso!")
             if st.button("Ir para Roteirização", type="primary"):
-                st.switch_page("src/dashboard_routing.py")
+                st.session_state["main_menu_radio"] = "Dashboard Routing"
+                st.experimental_rerun()
         st.dataframe(pedidos_df)
         # Salvar no database local na pasta src/database
         os.makedirs(os.path.join("src", "database"), exist_ok=True)
