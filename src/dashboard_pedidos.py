@@ -169,10 +169,10 @@ def dashboard_pedidos():
         for _, row in df_map_valid.iterrows():
             folium.Marker([row['Latitude'], row['Longitude']], popup=row.get('Nome Cliente', '')).add_to(m)
         folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-        folium_static(m, width="100%", height=500)
+        folium_static(m, width=1200, height=500)
     else:
         m = folium.Map(location=local_partida, zoom_start=10)
         folium.Marker(local_partida, popup="Local de Partida", icon=folium.Icon(color='red')).add_to(m)
-        folium_static(m, width="100%", height=500)
+        folium_static(m, width=1200, height=500)
         st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir os pedidos no mapa.")
     st.markdown("</div></div>", unsafe_allow_html=True)

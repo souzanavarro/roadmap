@@ -130,7 +130,7 @@ def dashboard_routing():
                 <div class='map-title'>Mapa da Roteirização</div>
             """, unsafe_allow_html=True)
             mapa = criar_mapa_rotas(pedidos_rota, rotas=[[i for i in range(len(pedidos_rota))]], partida_coords=(-23.0838, -47.1336))
-            folium_static(mapa, width="100%", height=500)
+            folium_static(mapa, width=1200, height=500)
             st.markdown("</div></div>", unsafe_allow_html=True)
 
             # Salvar histórico de roteirizações
