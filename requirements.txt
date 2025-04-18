@@ -11,3 +11,4 @@ requests
 streamlit-folium
 openpyxl
 ortools
+fuzzywuzzy

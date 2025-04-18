@@ -101,8 +101,9 @@ def dashboard_pedidos():
                 for _, row in coord_db.iterrows():
                     coordenadas_salvas[row['Endereço']] = (row['Latitude'], row['Longitude'])
             api_key = "6f522c67add14152926990afbe127384"
-            # Priorizar OpenCage e usar Nominatim como fallback
-            def get_coords(row):
+            # Progress bar para obtenção de coordenadas
+            progress_coords = st.progress(0, text="Obtendo coordenadas para os endereços...")
+            def get_coords(row, idx, total):
                 endereco = f"{row['Endereço de Entrega']}, {row['Bairro de Entrega']}, {row['Cidade de Entrega']}"
                 if endereco in coordenadas_salvas:
                     lat, lon = coordenadas_salvas[endereco]
@@ -121,10 +122,14 @@ def dashboard_pedidos():
                     except Exception as e:
                         st.warning(f"Erro ao tentar obter as coordenadas para '{endereco}': {e}. Deixando valores como nulos.")
                         lat, lon = None, None
+                progress_coords.progress(min((idx+1)/total, 1.0), text=f"Obtendo coordenadas: {idx+1}/{total}")
                 return pd.Series({'Latitude': lat, 'Longitude': lon})
-            coords = pedidos_df.apply(get_coords, axis=1)
+            total_rows = len(pedidos_df)
+            coords = [get_coords(row, idx, total_rows) for idx, row in pedidos_df.iterrows()]
+            coords = pd.DataFrame(coords)
             pedidos_df['Latitude'] = coords['Latitude']
             pedidos_df['Longitude'] = coords['Longitude']
+            progress_coords.empty()
             # Salvar coordenadas em database_coordernadas.csv
             # Agora também salva a Região
             coord_df = pd.DataFrame({
@@ -147,7 +152,11 @@ def dashboard_pedidos():
             # Preencher regiões reais dos pedidos a partir das coordenadas
             from geocode import preencher_regioes_pedidos
             st.info('Preenchendo regiões reais dos pedidos a partir das coordenadas (pode demorar alguns minutos na primeira vez)...')
-            pedidos_df = preencher_regioes_pedidos(pedidos_df)
+            progress_regioes = st.progress(0, text="Preenchendo regiões reais dos pedidos...")
+            def progress_callback_regioes(atual, total):
+                progress_regioes.progress(min(atual/total, 1.0), text=f"Preenchendo regiões: {atual}/{total}")
+            pedidos_df = preencher_regioes_pedidos(pedidos_df, progress_callback=progress_callback_regioes)
+            progress_regioes.empty()
             st.success('Regiões preenchidas automaticamente!')
             st.write(f"[LOG] Regiões detectadas: {pedidos_df['Região'].unique()}")
 
@@ -217,9 +226,10 @@ def dashboard_pedidos():
                 st.text(e)
         else:
             st.success('Todos os pedidos passaram na validação!')
-        # 4. Calcular peso/volume total por pedido
-        if 'Peso dos Itens' in pedidos_df.columns and 'Qtde. dos Itens' in pedidos_df.columns:
-            pedidos_df['Peso Total'] = pedidos_df['Peso dos Itens'] * pedidos_df['Qtde. dos Itens']
+        # 4. Peso Total deve ser igual ao Peso dos Itens
+        if 'Peso dos Itens' in pedidos_df.columns:
+            pedidos_df['Peso Total'] = pedidos_df['Peso dos Itens']
+        # Volume Total permanece calculado normalmente
         if 'Volume Unitário' in pedidos_df.columns and 'Qtde. dos Itens' in pedidos_df.columns:
             pedidos_df['Volume Total'] = pedidos_df['Volume Unitário'] * pedidos_df['Qtde. dos Itens']
         # 5. Salvar sempre no database
@@ -246,14 +256,6 @@ def dashboard_pedidos():
         pedidos_df.to_csv(pedidos_db_path, index=False)
         st.success(f"Pedidos salvos no banco de dados local: {pedidos_db_path}")
         df_map = pedidos_df
-        # Agrupamento por região (clusters)
-        st.subheader("Agrupar pedidos por região (clusters)")
-        n_clusters = st.number_input('Número de regiões (clusters)', min_value=1, max_value=20, value=3, step=1)
-        if st.button('Agrupar por Região'):
-            from routing import agrupar_por_regiao
-            pedidos_df = agrupar_por_regiao(pedidos_df, n_clusters)
-            st.success(f'Pedidos agrupados em {n_clusters} regiões!')
-            st.dataframe(pedidos_df)
         # --- Agrupamento geográfico e priorização de clusters ---
         st.subheader('Agrupar pedidos por proximidade geográfica')
         metodo_cluster = st.selectbox('Método de agrupamento', ['KMeans', 'DBSCAN', 'Região predefinida'])

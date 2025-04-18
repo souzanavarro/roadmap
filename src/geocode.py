@@ -2,6 +2,10 @@ import pandas as pd
 from geopy.geocoders import Nominatim
 import requests
 import streamlit as st
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import hashlib
+import pickle
+import os
 
 def geocode_address(address):
     geolocator = Nominatim(user_agent="delivery_router")
@@ -89,23 +93,44 @@ def obter_regiao_por_coordenada(latitude, longitude):
         print(f"[LOG] Erro ao buscar região por coordenada: {e}")
         return None
 
-def preencher_regioes_pedidos(pedidos_df, sleep_time=0.1):
+def _coord_hash(lat, lon, precision=5):
+    """Gera um hash para coordenadas arredondadas para evitar duplicidade."""
+    return hashlib.md5(f"{round(float(lat), precision)},{round(float(lon), precision)}".encode()).hexdigest()
+
+def preencher_regioes_pedidos(pedidos_df, sleep_time=0.1, max_workers=8, cache_path="src/database/regioes_cache.pkl"):
     """
     Preenche a coluna 'Região' do DataFrame de pedidos usando as coordenadas (latitude, longitude)
-    e a função obter_regiao_por_coordenada do geocode.py.
-    sleep_time: tempo de espera entre requisições (em segundos). Reduza para acelerar, mas cuidado com bloqueios!
+    Utiliza cache local e paralelização para acelerar o processo.
     """
     from geocode import obter_regiao_por_coordenada
     import time
-    regioes = []
-    for idx, row in pedidos_df.iterrows():
-        lat, lon = row['Latitude'], row['Longitude']
-        if pd.notnull(lat) and pd.notnull(lon):
-            regiao = obter_regiao_por_coordenada(lat, lon)
-            regioes.append(regiao)
-            print(f"[LOG] Pedido {idx}: Região encontrada: {regiao}")
-            time.sleep(sleep_time)  # Reduza para acelerar, mas cuidado com limites da API!
-        else:
-            regioes.append(None)
+    regioes = [None] * len(pedidos_df)
+    # Carregar cache local
+    if os.path.exists(cache_path):
+        with open(cache_path, "rb") as f:
+            regioes_cache = pickle.load(f)
+    else:
+        regioes_cache = {}
+    # Função para processar uma linha
+    def processa_linha(idx, lat, lon):
+        if pd.isnull(lat) or pd.isnull(lon):
+            return idx, None
+        h = _coord_hash(lat, lon)
+        if h in regioes_cache:
+            return idx, regioes_cache[h]
+        regiao = obter_regiao_por_coordenada(lat, lon)
+        regioes_cache[h] = regiao
+        return idx, regiao
+    # Montar lista de tarefas
+    tarefas = [(idx, row['Latitude'], row['Longitude']) for idx, row in pedidos_df.iterrows()]
+    # Paralelizar
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futuros = {executor.submit(processa_linha, idx, lat, lon): idx for idx, lat, lon in tarefas}
+        for fut in as_completed(futuros):
+            idx, regiao = fut.result()
+            regioes[idx] = regiao
+    # Salvar cache atualizado
+    with open(cache_path, "wb") as f:
+        pickle.dump(regioes_cache, f)
     pedidos_df['Região'] = regioes
     return pedidos_df
