@@ -126,17 +126,47 @@ def dashboard_pedidos():
             pedidos_df['Latitude'] = coords['Latitude']
             pedidos_df['Longitude'] = coords['Longitude']
             # Salvar coordenadas em database_coordernadas.csv
+            # Agora também salva a Região
             coord_df = pd.DataFrame({
                 'Endereço': pedidos_df['Endereço de Entrega'] + ', ' + pedidos_df['Bairro de Entrega'] + ', ' + pedidos_df['Cidade de Entrega'],
                 'Latitude': pedidos_df['Latitude'],
-                'Longitude': pedidos_df['Longitude']
+                'Longitude': pedidos_df['Longitude'],
+                'Região': pedidos_df.get('Região', None)  # Salva a Região se já existir
             })
             coord_df.drop_duplicates(subset=['Endereço'], inplace=True)
             if os.path.exists(coord_db_path):
                 coord_db = pd.read_csv(coord_db_path)
+                # Se o banco antigo não tem a coluna Região, adiciona
+                if 'Região' not in coord_db.columns:
+                    coord_db['Região'] = None
+                # Concatena e mantém a última ocorrência
                 coord_df = pd.concat([coord_db, coord_df]).drop_duplicates(subset=['Endereço'], keep='last')
             coord_df.to_csv(coord_db_path, index=False)
             st.success("Coordenadas obtidas com sucesso!")
+
+            # Preencher regiões reais dos pedidos a partir das coordenadas
+            from geocode import preencher_regioes_pedidos
+            st.info('Preenchendo regiões reais dos pedidos a partir das coordenadas (pode demorar alguns minutos na primeira vez)...')
+            pedidos_df = preencher_regioes_pedidos(pedidos_df)
+            st.success('Regiões preenchidas automaticamente!')
+            st.write(f"[LOG] Regiões detectadas: {pedidos_df['Região'].unique()}")
+
+            # Atualiza o arquivo database_coordernadas.csv com as regiões preenchidas
+            coord_df = pd.DataFrame({
+                'Endereço': pedidos_df['Endereço de Entrega'] + ', ' + pedidos_df['Bairro de Entrega'] + ', ' + pedidos_df['Cidade de Entrega'],
+                'Latitude': pedidos_df['Latitude'],
+                'Longitude': pedidos_df['Longitude'],
+                'Região': pedidos_df['Região']
+            })
+            coord_df.drop_duplicates(subset=['Endereço'], inplace=True)
+            if os.path.exists(coord_db_path):
+                coord_db = pd.read_csv(coord_db_path)
+                if 'Região' not in coord_db.columns:
+                    coord_db['Região'] = None
+                coord_df = pd.concat([coord_db, coord_df]).drop_duplicates(subset=['Endereço'], keep='last')
+            coord_df.to_csv(coord_db_path, index=False)
+
+            st.dataframe(pedidos_df)
         st.dataframe(pedidos_df)
         # Botão para limpar e salvar novos dados
         if st.button("Limpar e Salvar Novos Pedidos", type="primary"):

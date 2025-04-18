@@ -1,3 +1,4 @@
+import pandas as pd
 from geopy.geocoders import Nominatim
 import requests
 import streamlit as st
