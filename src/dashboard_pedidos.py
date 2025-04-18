@@ -158,7 +158,7 @@ def dashboard_pedidos():
             pedidos_df = preencher_regioes_pedidos(pedidos_df, progress_callback=progress_callback_regioes)
             progress_regioes.empty()
             st.success('Regiões preenchidas automaticamente!')
-            st.write(f"[LOG] Regiões detectadas: {pedidos_df['Região'].unique()}")
+            # st.write(f"[LOG] Regiões detectadas: {pedidos_df['Região'].unique()}")
 
             # Atualiza o arquivo database_coordernadas.csv com as regiões preenchidas
             coord_df = pd.DataFrame({
@@ -336,3 +336,27 @@ def dashboard_pedidos():
         folium_static(m, width=1200, height=500)
         st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir os pedidos no mapa.")
     st.markdown("</div></div>", unsafe_allow_html=True)
+
+    # --- Agrupamento automático por região ---
+    st.subheader('Agrupamento automático por região')
+    # Sempre usa a coluna 'Região' preenchida (reverse geocoding ou já existente)
+    if 'Região' not in pedidos_df.columns or pedidos_df['Região'].isnull().all():
+        from geocode import preencher_regioes_pedidos
+        st.info('Preenchendo regiões reais dos pedidos a partir das coordenadas (pode demorar alguns minutos na primeira vez)...')
+        progress_regioes = st.progress(0, text="Preenchendo regiões reais dos pedidos...")
+        def progress_callback_regioes(atual, total):
+            progress_regioes.progress(min(atual/total, 1.0), text=f"Preenchendo regiões: {atual}/{total}")
+        pedidos_df = preencher_regioes_pedidos(pedidos_df, progress_callback=progress_callback_regioes)
+        progress_regioes.empty()
+        st.success('Regiões preenchidas automaticamente!')
+    total_regioes = pedidos_df['Região'].nunique(dropna=True)
+    st.info(f'Total de regiões localizadas: {total_regioes}')
+    # Botão para agrupar pedidos por região nos veículos
+    if st.button('Agrupar pedidos por região nos veículos'):
+        # Agrupa pedidos por região e aloca veículos automaticamente
+        from routing import alocacao_regioes_por_veiculo
+        frota_db_path = os.path.join("src", "database", "database_frota.csv")
+        frota_df = pd.read_csv(frota_db_path)
+        pedidos_alocados = alocacao_regioes_por_veiculo(pedidos_df, frota_df, n_clusters=total_regioes, regioes_por_veiculo=1)
+        st.success('Pedidos agrupados por região e alocados nos veículos automaticamente!')
+        st.dataframe(pedidos_alocados)
