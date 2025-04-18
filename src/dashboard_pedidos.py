@@ -163,8 +163,15 @@ def dashboard_pedidos():
                 coord_db = pd.read_csv(coord_db_path)
                 if 'Região' not in coord_db.columns:
                     coord_db['Região'] = None
-                coord_df = pd.concat([coord_db, coord_df]).drop_duplicates(subset=['Endereço'], keep='last')
-            coord_df.to_csv(coord_db_path, index=False)
+                # Atualiza apenas as regiões dos endereços presentes em pedidos_df
+                coord_db.set_index('Endereço', inplace=True)
+                coord_df.set_index('Endereço', inplace=True)
+                coord_db.update(coord_df)
+                # Adiciona novos endereços, se houver
+                coord_db = pd.concat([coord_db, coord_df[~coord_df.index.isin(coord_db.index)]]).reset_index()
+            else:
+                coord_db = coord_df.reset_index()
+            coord_db.to_csv(coord_db_path, index=False)
 
             st.dataframe(pedidos_df)
         st.dataframe(pedidos_df)
