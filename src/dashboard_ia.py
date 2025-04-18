@@ -2,6 +2,25 @@ import streamlit as st
 import pandas as pd
 import os
 from geocode import obter_coordenadas_com_fallback
+from sklearn.cluster import KMeans
+import joblib
+
+def aprender_padroes(historico_path="src/database/historico_roteirizacoes.csv", n_clusters=5):
+    df = pd.read_csv(historico_path)
+    
+    # clustering por localização
+    coords = df[["latitude", "longitude"]]
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+    df["cluster"] = kmeans.fit_predict(coords)
+
+    # salvar modelo de cluster
+    joblib.dump(kmeans, "data/modelo_kmeans.pkl")
+
+    # aprender padrão de veículo por cluster
+    cluster_veiculo = df.groupby("cluster")["veiculo"].agg(lambda x: x.mode().iloc[0])
+    cluster_veiculo.to_csv("src/database/padrao_cluster_veiculo.csv")
+
+    return df, cluster_veiculo
 
 def dashboard_ia():
     st.header(":robot_face: Dashboard IA - Base de Roteirizações")
@@ -113,3 +132,24 @@ def dashboard_ia():
         folium_static(m, width=1200, height=500)
         st.info("Sua planilha precisa ter as colunas 'Latitude' e 'Longitude' para exibir o mapa.")
     st.markdown("</div></div>", unsafe_allow_html=True)
+
+    st.subheader("🔎 Aprendizado de Padrões de Rotas (MVP)")
+    if st.button("Aprender padrões do histórico de roteirizações"):
+        try:
+            df, cluster_veiculo = aprender_padroes()
+            st.success("Padrões aprendidos com sucesso!")
+            st.write("Sugestão de veículo por cluster (região):")
+            st.dataframe(cluster_veiculo.reset_index())
+        except Exception as e:
+            st.error(f"Erro ao aprender padrões: {e}")
+
+    st.markdown("""
+    <details>
+    <summary>Como funciona?</summary>
+    <ul>
+      <li>O sistema agrupa entregas por localização (KMeans).</li>
+      <li>Para cada região (cluster), identifica o veículo mais frequente.</li>
+      <li>Esses padrões podem ser usados para sugerir veículos automaticamente em novas roteirizações.</li>
+    </ul>
+    </details>
+    """, unsafe_allow_html=True)

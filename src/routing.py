@@ -9,13 +9,16 @@ import folium
 import os
 from itertools import permutations
 
+# --- Utilitários de Distância e Grafos ---
+
 def calcular_distancia(coords_1, coords_2):
+    """Calcula a distância geodésica entre dois pontos."""
     if coords_1 and coords_2:
         return geodesic(coords_1, coords_2).meters
-    else:
-        return None
+    return None
 
 def criar_grafo_tsp(pedidos_df, endereco_partida, endereco_partida_coords):
+    """Cria grafo para TSP com NetworkX."""
     G = nx.Graph()
     enderecos = pedidos_df['Endereço Completo'].unique()
     G.add_node(endereco_partida, pos=endereco_partida_coords)
@@ -31,7 +34,10 @@ def criar_grafo_tsp(pedidos_df, endereco_partida, endereco_partida_coords):
             G.add_edge(endereco1, endereco2, weight=distancia)
     return G
 
+# --- Algoritmos TSP (Genético e Nearest Neighbor) ---
+
 def resolver_tsp_genetico(G):
+    """Resolve TSP usando algoritmo genético."""
     def fitness(route):
         return sum(G.edges[route[i], route[i+1]]['weight'] for i in range(len(route) - 1)) + G.edges[route[-1], route[0]]['weight']
     def mutate(route):
@@ -67,121 +73,12 @@ def resolver_tsp_genetico(G):
     best_route, best_distance = genetic_algorithm(population)
     return best_route, best_distance
 
-def agrupar_por_regiao(pedidos_df, n_clusters=None):
-    """
-    Agrupa pedidos por cidade de entrega. Ignora n_clusters.
-    """
-    pedidos_df = pedidos_df.copy()
-    if 'Cidade de Entrega' in pedidos_df.columns:
-        pedidos_df['Regiao'] = pedidos_df['Cidade de Entrega']
-    else:
-        pedidos_df['Regiao'] = None
-    return pedidos_df
-
-def criar_grafo_rotas(pedidos_df):
-    """
-    Cria um grafo de rotas a partir dos pedidos com coordenadas.
-    """
-    G = nx.Graph()
-    for i, row1 in pedidos_df.iterrows():
-        for j, row2 in pedidos_df.iterrows():
-            if i != j:
-                coord1 = (row1['Latitude'], row1['Longitude'])
-                coord2 = (row2['Latitude'], row2['Longitude'])
-                distancia = geodesic(coord1, coord2).kilometers
-                G.add_edge(i, j, weight=distancia)
-    return G
-
-def calcular_rota_otima(grafo, ponto_partida):
-    """
-    Calcula a rota ótima usando o algoritmo de caminho mínimo.
-    """
-    try:
-        caminho = nx.approximation.traveling_salesman_problem(
-            grafo, cycle=True, weight='weight', method=nx.approximation.greedy_tsp
-        )
-        return caminho
-    except Exception as e:
-        raise ValueError(f"Erro ao calcular a rota ótima: {e}")
-
-def obter_distancia_total(grafo, rota):
-    """
-    Calcula a distância total de uma rota.
-    """
-    distancia_total = 0
-    for i in range(len(rota) - 1):
-        distancia_total += grafo[rota[i]][rota[i + 1]]['weight']
-    return distancia_total
-
-def dummy_route_solver(pedidos, frota):
-    # Esta função é um placeholder para o algoritmo de roteirização
-    # Implemente aqui o VRP usando OR-Tools ou outro algoritmo
-    return pedidos  # Retorna os pedidos sem alteração por enquanto
-
-def resolver_vrp(pedidos_df, frota):
-    """
-    Resolve o problema de roteirização de veículos (VRP) usando OR-Tools.
-    """
-    # Preparar dados para o VRP
-    coordenadas = pedidos_df[['Latitude', 'Longitude']].values
-    num_pedidos = len(coordenadas)
-    num_veiculos = len(frota)
-    matriz_distancias = [
-        [geodesic(coordenadas[i], coordenadas[j]).meters for j in range(num_pedidos)]
-        for i in range(num_pedidos)
-    ]
-
-    # Criar o gerenciador de dados
-    gerenciador = pywrapcp.RoutingIndexManager(len(matriz_distancias), num_veiculos, 0)
-
-    # Criar o modelo de roteirização
-    roteirizador = pywrapcp.RoutingModel(gerenciador)
-
-    # Função de custo (distância)
-    def distancia_callback(from_index, to_index):
-        from_node = gerenciador.IndexToNode(from_index)
-        to_node = gerenciador.IndexToNode(to_index)
-        return matriz_distancias[from_node][to_node]
-
-    transit_callback_index = roteirizador.RegisterTransitCallback(distancia_callback)
-    roteirizador.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
-
-    # Restrições de capacidade (se aplicável)
-    # Exemplo: roteirizador.AddDimension(...)
-
-    # Configurar parâmetros de busca
-    parametros_busca = pywrapcp.DefaultRoutingSearchParameters()
-    parametros_busca.first_solution_strategy = (
-        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    )
-
-    # Resolver o problema
-    solucao = roteirizador.SolveWithParameters(parametros_busca)
-
-    if solucao:
-        rotas = []
-        for veiculo_id in range(num_veiculos):
-            indice = roteirizador.Start(veiculo_id)
-            rota = []
-            while not roteirizador.IsEnd(indice):
-                node = gerenciador.IndexToNode(indice)
-                rota.append(node)
-                indice = solucao.Value(roteirizador.NextVar(indice))
-            rotas.append(rota)
-        return rotas
-    else:
-        raise ValueError("Não foi possível encontrar uma solução para o VRP.")
-
 def tsp_nearest_neighbor(pedidos_df, partida_coords):
-    """
-    Algoritmo TSP simples (Nearest Neighbor) para um único veículo.
-    """
+    """Algoritmo TSP simples (Nearest Neighbor) para um único veículo."""
     coords = [(row['Latitude'], row['Longitude']) for _, row in pedidos_df.iterrows()]
     n = len(coords)
     visitados = [False] * n
     rota = []
-    atual = 0
-    # Começa pelo ponto mais próximo do local de partida
     dists = [geodesic(partida_coords, c).meters for c in coords]
     atual = dists.index(min(dists))
     rota.append(atual)
@@ -201,9 +98,7 @@ def tsp_nearest_neighbor(pedidos_df, partida_coords):
     return rota
 
 def tsp_genetico(pedidos_df, partida_coords, generations=500, pop_size=100, mutation_rate=0.02):
-    """
-    Algoritmo TSP usando Algoritmo Genético.
-    """
+    """Algoritmo TSP usando Algoritmo Genético."""
     coords = [(row['Latitude'], row['Longitude']) for _, row in pedidos_df.iterrows()]
     n = len(coords)
     def fitness(route):
@@ -241,38 +136,12 @@ def tsp_genetico(pedidos_df, partida_coords, generations=500, pop_size=100, muta
     best = min(population, key=fitness)
     return best
 
-def resolver_vrp(pedidos_df, frota_df):
+# --- VRP com OR-Tools (Clássico, Capacidade, Percentual, Janela de Tempo) ---
+
+def resolver_vrp(pedidos_df, frota_df, capacidade_max=None, percentual_utilizacao=100, janelas_tempo=None):
     """
     VRP com OR-Tools para múltiplos veículos.
-    """
-    coords = [(row['Latitude'], row['Longitude']) for _, row in pedidos_df.iterrows()]
-    n = len(coords)
-    num_veiculos = len(frota_df)
-    matriz = [[geodesic(coords[i], coords[j]).meters for j in range(n)] for i in range(n)]
-    manager = pywrapcp.RoutingIndexManager(n, num_veiculos, 0)
-    routing = pywrapcp.RoutingModel(manager)
-    def dist_callback(from_idx, to_idx):
-        return int(matriz[manager.IndexToNode(from_idx)][manager.IndexToNode(to_idx)])
-    transit_callback_index = routing.RegisterTransitCallback(dist_callback)
-    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
-    search_params = pywrapcp.DefaultRoutingSearchParameters()
-    search_params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    solution = routing.SolveWithParameters(search_params)
-    rotas = []
-    if solution:
-        for v in range(num_veiculos):
-            idx = routing.Start(v)
-            rota = []
-            while not routing.IsEnd(idx):
-                node = manager.IndexToNode(idx)
-                rota.append(node)
-                idx = solution.Value(routing.NextVar(idx))
-            rotas.append(rota)
-    return rotas
-
-def resolver_vrp(pedidos_df, frota_df, capacidade_max=None):
-    """
-    VRP com OR-Tools para múltiplos veículos, com restrição de capacidade máxima individual por veículo.
+    Suporta restrição de capacidade, percentual de uso e janelas de tempo (se fornecidas).
     """
     coords = [(row['Latitude'], row['Longitude']) for _, row in pedidos_df.iterrows()]
     n = len(coords)
@@ -285,54 +154,7 @@ def resolver_vrp(pedidos_df, frota_df, capacidade_max=None):
     transit_callback_index = routing.RegisterTransitCallback(dist_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
-    # Restrição de capacidade individual por veículo
-    if 'Peso dos Itens' in pedidos_df.columns and 'Capac. Kg' in frota_df.columns:
-        demands = [int(p) for p in pedidos_df['Peso dos Itens']]
-        def demand_callback(from_index):
-            node = manager.IndexToNode(from_index)
-            return demands[node]
-        demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
-        capacidades = [int(c) for c in frota_df['Capac. Kg']]
-        routing.AddDimensionWithVehicleCapacity(
-            demand_callback_index,
-            0,  # sem capacidade extra
-            capacidades,  # capacidade individual de cada veículo
-            True,  # start cumul to zero
-            'Capacity')
-
-    search_params = pywrapcp.DefaultRoutingSearchParameters()
-    search_params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    solution = routing.SolveWithParameters(search_params)
-    rotas = []
-    if solution:
-        for v in range(num_veiculos):
-            idx = routing.Start(v)
-            rota = []
-            while not routing.IsEnd(idx):
-                node = manager.IndexToNode(idx)
-                rota.append(node)
-                idx = solution.Value(routing.NextVar(idx))
-            rotas.append(rota)
-    return rotas
-
-def resolver_vrp(pedidos_df, frota_df, percentual_utilizacao=100):
-    """
-    VRP com OR-Tools para múltiplos veículos, considerando a capacidade individual de cada veículo
-    e um percentual de utilização definido pelo usuário.
-    percentual_utilizacao: valor entre 0 e 100 (ex: 80 para usar até 80% da capacidade de cada veículo)
-    """
-    coords = [(row['Latitude'], row['Longitude']) for _, row in pedidos_df.iterrows()]
-    n = len(coords)
-    num_veiculos = len(frota_df)
-    matriz = [[geodesic(coords[i], coords[j]).meters for j in range(n)] for i in range(n)]
-    manager = pywrapcp.RoutingIndexManager(n, num_veiculos, 0)
-    routing = pywrapcp.RoutingModel(manager)
-    def dist_callback(from_idx, to_idx):
-        return int(matriz[manager.IndexToNode(from_idx)][manager.IndexToNode(to_idx)])
-    transit_callback_index = routing.RegisterTransitCallback(dist_callback)
-    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
-
-    # Restrição de capacidade individual por veículo com percentual
+    # Restrição de capacidade individual por veículo (CVRP)
     if 'Peso dos Itens' in pedidos_df.columns and 'Capac. Kg' in frota_df.columns:
         demands = [int(p) for p in pedidos_df['Peso dos Itens']]
         def demand_callback(from_index):
@@ -343,9 +165,28 @@ def resolver_vrp(pedidos_df, frota_df, percentual_utilizacao=100):
         routing.AddDimensionWithVehicleCapacity(
             demand_callback_index,
             0,  # sem capacidade extra
-            capacidades,  # capacidade individual ajustada por %
-            True,  # start cumul to zero
-            'Capacity')
+            capacidades,
+            True,
+            'Capacity'
+        )
+
+    # Restrição de janela de tempo (VRPTW)
+    if janelas_tempo is not None:
+        # janelas_tempo: lista de tuplas (inicio, fim) para cada pedido
+        def time_callback(from_index, to_index):
+            return int(matriz[manager.IndexToNode(from_index)][manager.IndexToNode(to_index)] // 60)  # tempo em minutos
+        time_callback_index = routing.RegisterTransitCallback(time_callback)
+        routing.AddDimension(
+            time_callback_index,
+            30,  # tempo de espera permitido
+            1440,  # tempo máximo do dia
+            False,
+            'Time'
+        )
+        time_dimension = routing.GetDimensionOrDie('Time')
+        for i, window in enumerate(janelas_tempo):
+            index = manager.NodeToIndex(i)
+            time_dimension.CumulVar(index).SetRange(window[0], window[1])
 
     search_params = pywrapcp.DefaultRoutingSearchParameters()
     search_params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
@@ -362,16 +203,25 @@ def resolver_vrp(pedidos_df, frota_df, percentual_utilizacao=100):
             rotas.append(rota)
     return rotas
 
-def agrupar_por_regiao(pedidos_df, n_clusters):
+# --- Clustering e Agrupamento Inteligente ---
+
+def agrupar_por_regiao(pedidos_df, n_clusters=3, metodo='kmeans'):
     """
-    Agrupa pedidos por proximidade geográfica usando KMeans.
-    Remove linhas com Latitude ou Longitude faltando antes de agrupar.
+    Agrupa pedidos por proximidade geográfica.
+    Suporte a KMeans (default) e DBSCAN.
     """
     pedidos_df = pedidos_df.copy()
     pedidos_df = pedidos_df.dropna(subset=['Latitude', 'Longitude'])
-    kmeans = KMeans(n_clusters=n_clusters)
-    pedidos_df['Regiao'] = kmeans.fit_predict(pedidos_df[['Latitude', 'Longitude']])
+    if metodo == 'dbscan':
+        from sklearn.cluster import DBSCAN
+        clusters = DBSCAN(eps=0.01, min_samples=5).fit_predict(pedidos_df[['Latitude', 'Longitude']])
+        pedidos_df['Regiao'] = clusters
+    else:
+        kmeans = KMeans(n_clusters=n_clusters)
+        pedidos_df['Regiao'] = kmeans.fit_predict(pedidos_df[['Latitude', 'Longitude']])
     return pedidos_df
+
+# --- Exportação, Visualização e Feedback ---
 
 def exportar_rotas_para_planilhas(pedidos_df, rotas, pasta_saida='src/database/rotas_exportadas'):
     os.makedirs(pasta_saida, exist_ok=True)
@@ -390,9 +240,7 @@ def exportar_rotas_para_planilhas(pedidos_df, rotas, pasta_saida='src/database/r
     return arquivos_gerados
 
 def criar_mapa_rotas(pedidos_df, rotas=None, partida_coords=(-23.0838, -47.1336)):
-    """
-    Visualização de rotas e pontos no mapa usando Folium.
-    """
+    """Visualização de rotas e pontos no mapa usando Folium."""
     mapa = folium.Map(location=partida_coords, zoom_start=11)
     folium.Marker(partida_coords, popup="Partida", icon=folium.Icon(color='red')).add_to(mapa)
     for _, row in pedidos_df.iterrows():
@@ -405,10 +253,7 @@ def criar_mapa_rotas(pedidos_df, rotas=None, partida_coords=(-23.0838, -47.1336)
     return mapa
 
 def roteirizacao_manual(pedidos_df):
-    """
-    Permite ao usuário selecionar manualmente a ordem dos pedidos (exemplo para Streamlit).
-    """
-    st = None
+    """Permite ao usuário selecionar manualmente a ordem dos pedidos (exemplo para Streamlit)."""
     try:
         import streamlit as st
     except ImportError:
@@ -416,6 +261,8 @@ def roteirizacao_manual(pedidos_df):
     st.write("Arraste para ordenar os pedidos manualmente:")
     pedidos_df = st.data_editor(pedidos_df, use_container_width=True, num_rows="dynamic")
     return pedidos_df
+
+# --- Pré-processamento Inteligente e Alocação por Regras ---
 
 def pre_processamento_frota_regiao(pedidos_df, frota_df, n_clusters=5):
     """
@@ -497,7 +344,7 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
     pedidos_df = pedidos_df.copy()
     frota_df = frota_df.copy()
     # Checagem de dados
-    if pedidos_df.empty or frota_df.empty:
+    if pedidos_df.empty ou frota_df.empty:
         st.error("Pedidos ou frota vazios!")
         return pedidos_df
     if 'Peso dos Itens' not in pedidos_df.columns or 'Qtde. dos Itens' not in pedidos_df.columns:
@@ -509,7 +356,7 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
     pedidos_df = pedidos_df.dropna(subset=['Latitude', 'Longitude', 'Peso dos Itens', 'Qtde. dos Itens'])
     pedidos_df = pedidos_df[(pedidos_df['Peso dos Itens'] > 0) & (pedidos_df['Qtde. dos Itens'] > 0)]
     frota_df = frota_df[(frota_df['Capac. Kg'] > 0) & (frota_df['Capac. Cx'] > 0)]
-    if pedidos_df.empty or frota_df.empty:
+    if pedidos_df.empty ou frota_df.empty:
         st.error("Pedidos ou frota sem dados válidos!")
         return pedidos_df
     # Agrupamento por região baseado em cidade de entrega
@@ -539,13 +386,13 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
         veiculos_necessarios = []
         peso_restante = peso_total
         cx_restante = cx_total
-        while (peso_restante > 0 or cx_restante > 0) and not frota_disp.empty:
+        while (peso_restante > 0 ou cx_restante > 0) and not frota_disp.empty:
             veiculo = frota_disp.iloc[0]
             veiculos_necessarios.append(veiculo)
             peso_restante -= veiculo['Capac. Kg']
             cx_restante -= veiculo['Capac. Cx']
             frota_disp = frota_disp.iloc[1:]
-        if peso_restante > 0 or cx_restante > 0:
+        if peso_restante > 0 ou cx_restante > 0:
             st.warning(f"Região {regiao} excede a capacidade da frota disponível! Alguns pedidos podem ficar sem alocação.")
         # Distribuição de pedidos entre veículos
         pedidos_regiao = pedidos_regiao.sort_values(['Prioridade', 'Peso dos Itens'], ascending=[True, False])
@@ -750,3 +597,52 @@ def resolver_vrp(pedidos_df, frota_df, capacidade_max=None):
     else:
         print("[LOG] Nenhuma solução encontrada pelo VRP!")
     return rotas
+
+# 1. VRP clássico e variantes (Google OR-Tools já implementado)
+# - Para VRPTW (janelas de tempo): adicione colunas 'Janela Inicial' e 'Janela Final' nos pedidos.
+#   No OR-Tools, use routing.AddDimension para restrição de tempo.
+# - Para CVRP (capacidades): já há suporte para 'Peso dos Itens' e 'Capac. Kg' por veículo.
+
+# Exemplo de restrição de janela de tempo (VRPTW):
+# if 'Janela Inicial' in pedidos_df.columns and 'Janela Final' in pedidos_df.columns:
+#     time_windows = list(zip(pedidos_df['Janela Inicial'], pedidos_df['Janela Final']))
+#     routing.AddDimension(
+#         time_callback_index,
+#         30,  # tempo de espera permitido
+#         1440,  # tempo máximo do dia
+#         False,
+#         'Time')
+#     time_dimension = routing.GetDimensionOrDie('Time')
+#     for i, window in enumerate(time_windows):
+#         index = manager.NodeToIndex(i)
+#         time_dimension.CumulVar(index).SetRange(window[0], window[1])
+
+# 2. Algoritmos genéticos/simulated annealing
+# - Já há TSP genético no projeto. Para VRP genético, adapte para múltiplos veículos.
+# - Para simulated annealing, use scipy.optimize ou implemente um algoritmo customizado.
+
+# 3. IA e Machine Learning (padrões inteligentes)
+# - Clustering já implementado (KMeans). Para DBSCAN:
+#   from sklearn.cluster import DBSCAN
+#   clusters = DBSCAN(eps=0.01, min_samples=5).fit_predict(coords)
+# - Para predição de tempo de entrega:
+#   from sklearn.linear_model import LinearRegression
+#   model = LinearRegression().fit(X_treino, y_tempo_entrega)
+# - Para regras aprendidas (ex: cliente X prefere tarde), salve preferências no histórico e use para sugerir janelas.
+
+# 4. Regras de Negócio Personalizadas
+# - Prioridade: adicione coluna 'Prioridade' e ordene pedidos antes do VRP.
+# - Horários preferenciais: use colunas 'Janela Inicial'/'Janela Final' e VRPTW.
+# - Restrições de acesso: filtre pedidos/veículos conforme regras antes do VRP.
+
+# 5. Cadastro e Perfil de Veículos
+# - Adicione colunas em database_frota.csv: 'Tipo Veículo', 'Custo por Km', 'Disponibilidade', etc.
+# - Considere essas colunas ao montar as restrições do VRP.
+
+# 6. Mapas e Cálculo de Distâncias
+# - Para rotas reais, integre APIs como OSRM, Google Maps, etc.
+# - Exemplo: usar requests para consultar OSRM e montar matriz de distâncias real.
+
+# 7. Feedback e Aprendizado Contínuo
+# - Após cada roteirização, salve o resultado em historico_roteirizacoes.csv.
+# - Implemente análise de performance (ex: atraso, desvio) e ajuste automático dos clusters/modelos.
