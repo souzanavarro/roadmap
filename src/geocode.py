@@ -89,10 +89,11 @@ def obter_regiao_por_coordenada(latitude, longitude):
         print(f"[LOG] Erro ao buscar região por coordenada: {e}")
         return None
 
-def preencher_regioes_pedidos(pedidos_df):
+def preencher_regioes_pedidos(pedidos_df, sleep_time=0.1):
     """
     Preenche a coluna 'Região' do DataFrame de pedidos usando as coordenadas (latitude, longitude)
     e a função obter_regiao_por_coordenada do geocode.py.
+    sleep_time: tempo de espera entre requisições (em segundos). Reduza para acelerar, mas cuidado com bloqueios!
     """
     from geocode import obter_regiao_por_coordenada
     import time
@@ -103,7 +104,7 @@ def preencher_regioes_pedidos(pedidos_df):
             regiao = obter_regiao_por_coordenada(lat, lon)
             regioes.append(regiao)
             print(f"[LOG] Pedido {idx}: Região encontrada: {regiao}")
-            time.sleep(1)  # Respeita o limite da API gratuita Nominatim
+            time.sleep(sleep_time)  # Reduza para acelerar, mas cuidado com limites da API!
         else:
             regioes.append(None)
     pedidos_df['Região'] = regioes

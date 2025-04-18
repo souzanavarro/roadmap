@@ -217,6 +217,167 @@ def dashboard_routing():
             st.write(f"[LOG] Erro na roteirização: {e}")
         return  # Não mostrar nada até o usuário clicar novamente
 
+    # --- Distribuição da Carga por Veículo ---
+    st.subheader('Distribuição da Carga por Veículo')
+    if 'Peso Total' not in pedidos_df.columns and 'Peso dos Itens' in pedidos_df.columns and 'Qtde. dos Itens' in pedidos_df.columns:
+        pedidos_df['Peso Total'] = pedidos_df['Peso dos Itens'] * pedidos_df['Qtde. dos Itens']
+    if 'Volume Total' not in pedidos_df.columns and 'Volume Unitário' in pedidos_df.columns and 'Qtde. dos Itens' in pedidos_df.columns:
+        pedidos_df['Volume Total'] = pedidos_df['Volume Unitário'] * pedidos_df['Qtde. dos Itens']
+    # Verificar disponibilidade dos veículos
+    if 'Disponível' in frota_df.columns:
+        frota_disponivel = frota_df[frota_df['Disponível'].str.lower() == 'sim']
+    else:
+        frota_disponivel = frota_df.copy()
+    if frota_disponivel.empty:
+        st.error('Nenhum veículo disponível para roteirização!')
+        return
+    # Agrupar pedidos por cluster/região
+    if 'Regiao' in pedidos_df.columns:
+        pedidos_df['Cluster'] = pedidos_df['Regiao']
+    elif 'Região' in pedidos_df.columns:
+        pedidos_df['Cluster'] = pedidos_df['Região']
+    else:
+        pedidos_df['Cluster'] = 0
+    clusters = pedidos_df['Cluster'].unique()
+    carga_veiculos = []
+    veiculo_idx = 0
+    for cluster in clusters:
+        pedidos_cluster = pedidos_df[pedidos_df['Cluster'] == cluster]
+        peso_total = pedidos_cluster['Peso Total'].sum() if 'Peso Total' in pedidos_cluster.columns else 0
+        volume_total = pedidos_cluster['Volume Total'].sum() if 'Volume Total' in pedidos_cluster.columns else 0
+        pedidos_restantes = pedidos_cluster.copy()
+        while not pedidos_restantes.empty and veiculo_idx < len(frota_disponivel):
+            veiculo = frota_disponivel.iloc[veiculo_idx]
+            capacidade_kg = veiculo['Capac. Kg'] if 'Capac. Kg' in veiculo else 0
+            capacidade_vol = veiculo['Capac. Cx'] if 'Capac. Cx' in veiculo else None
+            peso_usado = 0
+            volume_usado = 0
+            pedidos_alocados_idx = []
+            for idx, pedido in pedidos_restantes.iterrows():
+                peso_pedido = pedido['Peso Total'] if 'Peso Total' in pedido else 0
+                volume_pedido = pedido['Volume Total'] if 'Volume Total' in pedido else 0
+                if (peso_usado + peso_pedido <= capacidade_kg) and (capacidade_vol is None or volume_usado + volume_pedido <= capacidade_vol):
+                    peso_usado += peso_pedido
+                    volume_usado += volume_pedido
+                    pedidos_alocados_idx.append(idx)
+            percentual_peso = round(100 * peso_usado / capacidade_kg, 1) if capacidade_kg else 0
+            percentual_vol = round(100 * volume_usado / capacidade_vol, 1) if capacidade_vol else None
+            carga_veiculos.append({
+                'Veículo': veiculo['Placa'] if 'Placa' in veiculo else veiculo_idx+1,
+                'Cluster/Região': cluster,
+                'Peso Alocado (kg)': peso_usado,
+                'Capacidade (kg)': capacidade_kg,
+                'Aproveitamento Peso (%)': percentual_peso,
+                'Volume Alocado': volume_usado,
+                'Capacidade Volume': capacidade_vol,
+                'Aproveitamento Volume (%)': percentual_vol
+            })
+            pedidos_restantes = pedidos_restantes.drop(pedidos_alocados_idx)
+            veiculo_idx += 1
+        if not pedidos_restantes.empty:
+            st.warning(f"Cluster/Região {cluster}: Excesso de carga! {len(pedidos_restantes)} pedidos não alocados.")
+    carga_veiculos_df = pd.DataFrame(carga_veiculos)
+    st.dataframe(carga_veiculos_df, use_container_width=True)
+
+    # --- Otimização da Rota por Veículo ---
+    st.subheader('Otimização da Rota (Ordem de Entrega)')
+    criterio_otimizacao = st.selectbox('Critério de otimização da rota', ['Menor distância', 'Menor tempo'])
+    usar_janelas = 'Janela Inicial' in pedidos_df.columns and 'Janela Final' in pedidos_df.columns
+    ponto_partida = st.text_input('Endereço ou coordenada de partida do veículo', value='-23.0838, -47.1336')
+    if st.button('Otimizar Rotas de Entrega por Veículo'):
+        from routing import get_osrm_distance_matrix, resolver_vrp
+        import numpy as np
+        resultados_rotas = []
+        for veiculo in carga_veiculos_df['Veículo'].unique():
+            pedidos_veic = pedidos_df[pedidos_df['Placa'] == veiculo] if 'Placa' in pedidos_df.columns else pedidos_df.iloc[[]]
+            if pedidos_veic.empty:
+                continue
+            coords = [(row['Latitude'], row['Longitude']) for _, row in pedidos_veic.iterrows()]
+            # Adiciona ponto de partida
+            try:
+                lat0, lon0 = map(float, ponto_partida.split(','))
+                coords = [(lat0, lon0)] + coords
+            except:
+                coords = coords
+            matriz = None
+            if criterio_otimizacao == 'Menor tempo':
+                matriz = get_osrm_distance_matrix(coords)
+            # Janelas de entrega
+            janelas = None
+            if usar_janelas:
+                janelas = list(zip(pedidos_veic['Janela Inicial'], pedidos_veic['Janela Final']))
+                # Adiciona janela ampla para o ponto de partida
+                janelas = [(0, 1440)] + janelas
+            rotas = resolver_vrp(
+                pedidos_veic.reset_index(drop=True),
+                pd.DataFrame([{'Placa': veiculo, 'Capac. Kg': carga_veiculos_df[carga_veiculos_df['Veículo']==veiculo]['Capacidade (kg)'].iloc[0]}]),
+                matriz_distancias=matriz,
+            )
+            resultados_rotas.append({'Veículo': veiculo, 'Rota': rotas[0] if rotas else [], 'Pedidos': pedidos_veic})
+        for res in resultados_rotas:
+            st.markdown(f"**Veículo:** {res['Veículo']}")
+            if res['Rota']:
+                pedidos_ordenados = res['Pedidos'].iloc[res['Rota']]
+                st.dataframe(pedidos_ordenados)
+            else:
+                st.warning('Não foi possível otimizar a rota para este veículo.')
+
+    # --- Geração e Exportação das Rotas ---
+    st.subheader('Geração e Exportação das Rotas')
+    if 'resultados_rotas' in locals() and resultados_rotas:
+        from routing import criar_mapa_rotas, exportar_rotas_para_planilhas
+        from streamlit_folium import folium_static
+        for res in resultados_rotas:
+            st.markdown(f"### Veículo: {res['Veículo']}")
+            if res['Rota']:
+                pedidos_ordenados = res['Pedidos'].iloc[res['Rota']]
+                # Visualização no mapa
+                mapa = criar_mapa_rotas(pedidos_ordenados.reset_index(drop=True), rotas=[[i for i in range(len(pedidos_ordenados))]], partida_coords=(-23.0838, -47.1336))
+                folium_static(mapa, width=1000, height=400)
+                # Exportar rota Excel
+                pasta_saida = os.path.join('src', 'database', 'rotas_exportadas')
+                arquivos = exportar_rotas_para_planilhas(pedidos_ordenados, [[i for i in range(len(pedidos_ordenados))]], pasta_saida=pasta_saida)
+                for nome_arquivo, caminho_arquivo in arquivos:
+                    st.success(f"Rota exportada: {nome_arquivo}")
+                    st.download_button(f"Baixar {nome_arquivo}", data=open(caminho_arquivo, 'rb').read(), file_name=nome_arquivo)
+                # Salvar no histórico
+                historico_path = os.path.join("src", "database", "historico_roteirizacoes.csv")
+                from datetime import datetime
+                pedidos_ordenados['Data Roteirizacao'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                if os.path.exists(historico_path):
+                    historico_df = pd.read_csv(historico_path)
+                    historico_df = pd.concat([historico_df, pedidos_ordenados], ignore_index=True)
+                else:
+                    historico_df = pedidos_ordenados
+                historico_df.to_csv(historico_path, index=False)
+                st.info(f"Rota salva no histórico para aprendizado.")
+            else:
+                st.warning('Não foi possível gerar/exportar a rota para este veículo.')
+
+    # --- Aprendizado de Padrões de Alocação (IA) ---
+    st.subheader('Sugestão Inteligente de Veículo por Região (IA)')
+    historico_path = os.path.join("src", "database", "historico_roteirizacoes.csv")
+    sugestoes_veiculo = {}
+    if os.path.exists(historico_path):
+        historico_df = pd.read_csv(historico_path)
+        if 'Regiao' in historico_df.columns and 'Placa' in historico_df.columns:
+            # Aprender: modelo simples de predição (maior frequência)
+            freq = historico_df.groupby(['Regiao', 'Placa']).size().reset_index(name='freq')
+            sugestoes_veiculo = freq.sort_values('freq', ascending=False).groupby('Regiao').first()['Placa'].to_dict()
+            st.info('Sugestão automática: para cada região, o veículo mais frequente será sugerido na alocação.')
+            st.dataframe(pd.DataFrame(list(sugestoes_veiculo.items()), columns=['Região', 'Veículo Sugerido']))
+    # Aplicar sugestão no roteirizador
+    if st.button('Aplicar Sugestão de Veículo por Região'):
+        if sugestoes_veiculo:
+            if 'Regiao' in pedidos_df.columns:
+                pedidos_df['Placa Sugerida'] = pedidos_df['Regiao'].map(sugestoes_veiculo)
+                st.success('Sugestão aplicada! Veja a coluna "Placa Sugerida" na tabela de pedidos.')
+                st.dataframe(pedidos_df)
+            else:
+                st.warning('Pedidos não possuem coluna de região para aplicar sugestão.')
+        else:
+            st.warning('Ainda não há histórico suficiente para sugerir veículos por região.')
+
     # Após roteirizar, só mostrar o histórico
     historico_path = os.path.join("src", "database", "historico_roteirizacoes.csv")
     if not os.path.exists(historico_path) or os.path.getsize(historico_path) == 0:

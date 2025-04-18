@@ -174,7 +174,61 @@ def dashboard_pedidos():
             coord_db.to_csv(coord_db_path, index=False)
 
             st.dataframe(pedidos_df)
+
+        # --- NOVO: Validação e processamento completo dos pedidos importados ---
+        import numpy as np
+        from fuzzywuzzy import fuzz, process
+        # 1. Corrigir endereços com fuzzy matching (exemplo: padronizar nomes de cidades/bairros)
+        if 'Cidade de Entrega' in pedidos_df.columns:
+            cidades_unicas = pedidos_df['Cidade de Entrega'].dropna().unique().tolist()
+            for idx, row in pedidos_df.iterrows():
+                cidade = row['Cidade de Entrega']
+                if pd.notnull(cidade):
+                    melhor, score = process.extractOne(str(cidade), cidades_unicas)
+                    if score < 85:
+                        pedidos_df.at[idx, 'Cidade de Entrega'] = melhor
+        if 'Bairro de Entrega' in pedidos_df.columns:
+            bairros_unicos = pedidos_df['Bairro de Entrega'].dropna().unique().tolist()
+            for idx, row in pedidos_df.iterrows():
+                bairro = row['Bairro de Entrega']
+                if pd.notnull(bairro):
+                    melhor, score = process.extractOne(str(bairro), bairros_unicos)
+                    if score < 85:
+                        pedidos_df.at[idx, 'Bairro de Entrega'] = melhor
+        # 2. Geocodificação já feita acima
+        # 3. Validação de dados essenciais
+        erros = []
+        for idx, row in pedidos_df.iterrows():
+            if 'Peso dos Itens' in row and (pd.isnull(row['Peso dos Itens']) or row['Peso dos Itens'] <= 0):
+                erros.append(f"Pedido {idx}: Peso inválido.")
+            if 'Qtde. dos Itens' in row and (pd.isnull(row['Qtde. dos Itens']) or row['Qtde. dos Itens'] <= 0):
+                erros.append(f"Pedido {idx}: Quantidade inválida.")
+            if 'Latitude' in row and (pd.isnull(row['Latitude'])):
+                erros.append(f"Pedido {idx}: Latitude ausente.")
+            if 'Longitude' in row and (pd.isnull(row['Longitude'])):
+                erros.append(f"Pedido {idx}: Longitude ausente.")
+            if 'Janela Inicial' in row and 'Janela Final' in row:
+                if pd.notnull(row['Janela Inicial']) and pd.notnull(row['Janela Final']):
+                    if row['Janela Inicial'] > row['Janela Final']:
+                        erros.append(f"Pedido {idx}: Janela de entrega inválida.")
+        if erros:
+            st.warning('Foram encontrados problemas nos dados dos pedidos:')
+            for e in erros:
+                st.text(e)
+        else:
+            st.success('Todos os pedidos passaram na validação!')
+        # 4. Calcular peso/volume total por pedido
+        if 'Peso dos Itens' in pedidos_df.columns and 'Qtde. dos Itens' in pedidos_df.columns:
+            pedidos_df['Peso Total'] = pedidos_df['Peso dos Itens'] * pedidos_df['Qtde. dos Itens']
+        if 'Volume Unitário' in pedidos_df.columns and 'Qtde. dos Itens' in pedidos_df.columns:
+            pedidos_df['Volume Total'] = pedidos_df['Volume Unitário'] * pedidos_df['Qtde. dos Itens']
+        # 5. Salvar sempre no database
+        pedidos_db_path = os.path.join("src", "database", "database_pedidos.csv")
+        pedidos_df.to_csv(pedidos_db_path, index=False)
+        st.success(f"Pedidos processados e salvos no banco de dados local: {pedidos_db_path}")
+
         st.dataframe(pedidos_df)
+
         # Botão para limpar e salvar novos dados
         if st.button("Limpar e Salvar Novos Pedidos", type="primary"):
             # Limpa o database_pedidos.csv
@@ -200,6 +254,55 @@ def dashboard_pedidos():
             pedidos_df = agrupar_por_regiao(pedidos_df, n_clusters)
             st.success(f'Pedidos agrupados em {n_clusters} regiões!')
             st.dataframe(pedidos_df)
+        # --- Agrupamento geográfico e priorização de clusters ---
+        st.subheader('Agrupar pedidos por proximidade geográfica')
+        metodo_cluster = st.selectbox('Método de agrupamento', ['KMeans', 'DBSCAN', 'Região predefinida'])
+        n_clusters = 3
+        if metodo_cluster == 'KMeans':
+            n_clusters = st.number_input('Número de clusters (KMeans)', min_value=1, max_value=20, value=3, step=1)
+        elif metodo_cluster == 'DBSCAN':
+            eps = st.number_input('EPS (DBSCAN)', min_value=0.001, max_value=0.1, value=0.01, step=0.001, format="%0.3f")
+            min_samples = st.number_input('Mínimo de pontos por cluster (DBSCAN)', min_value=1, max_value=20, value=5, step=1)
+        if st.button('Agrupar pedidos'):
+            df_cluster = pedidos_df.copy()
+            if metodo_cluster == 'KMeans':
+                from sklearn.cluster import KMeans
+                coords = df_cluster[['Latitude', 'Longitude']].dropna()
+                kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+                df_cluster.loc[coords.index, 'Cluster'] = kmeans.fit_predict(coords)
+            elif metodo_cluster == 'DBSCAN':
+                from sklearn.cluster import DBSCAN
+                coords = df_cluster[['Latitude', 'Longitude']].dropna()
+                dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+                df_cluster.loc[coords.index, 'Cluster'] = dbscan.fit_predict(coords)
+            else:  # Região predefinida
+                if 'Região' in df_cluster.columns:
+                    df_cluster['Cluster'] = df_cluster['Região']
+                else:
+                    st.warning('Coluna "Região" não encontrada nos pedidos.')
+            # Calcular centroide de cada cluster
+            centroides = df_cluster.groupby('Cluster')[['Latitude', 'Longitude']].mean().reset_index()
+            st.markdown('**Centroide de cada cluster:**')
+            st.dataframe(centroides)
+            # Priorizar clusters por volume total ou urgência
+            prioridade_col = None
+            if 'Urgência' in df_cluster.columns:
+                prioridade_col = 'Urgência'
+            elif 'Prioridade' in df_cluster.columns:
+                prioridade_col = 'Prioridade'
+            agrupamento = df_cluster.groupby('Cluster').agg({
+                'Peso Total': 'sum' if 'Peso Total' in df_cluster.columns else 'count',
+                prioridade_col: 'max' if prioridade_col else 'count'
+            }).reset_index() if prioridade_col else df_cluster.groupby('Cluster').agg({'Peso Total': 'sum' if 'Peso Total' in df_cluster.columns else 'count'}).reset_index()
+            if prioridade_col:
+                agrupamento = agrupamento.sort_values([prioridade_col, 'Peso Total'], ascending=[False, False])
+            else:
+                agrupamento = agrupamento.sort_values('Peso Total', ascending=False)
+            st.markdown('**Clusters priorizados por volume total e urgência:**')
+            st.dataframe(agrupamento)
+            # Exibir pedidos agrupados
+            st.markdown('**Pedidos agrupados:**')
+            st.dataframe(df_cluster)
         # Checagem de frota disponível
         if frota_disponivel is not None and frota_disponivel.empty:
             st.error("Não há veículos disponíveis na frota para roterização!")

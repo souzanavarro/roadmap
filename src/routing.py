@@ -8,6 +8,7 @@ import pandas as pd
 import folium
 import os
 from itertools import permutations
+import requests
 
 # --- Utilitários de Distância e Grafos ---
 
@@ -344,7 +345,7 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
     pedidos_df = pedidos_df.copy()
     frota_df = frota_df.copy()
     # Checagem de dados
-    if pedidos_df.empty ou frota_df.empty:
+    if pedidos_df.empty or frota_df.empty:
         st.error("Pedidos ou frota vazios!")
         return pedidos_df
     if 'Peso dos Itens' not in pedidos_df.columns or 'Qtde. dos Itens' not in pedidos_df.columns:
@@ -356,7 +357,7 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
     pedidos_df = pedidos_df.dropna(subset=['Latitude', 'Longitude', 'Peso dos Itens', 'Qtde. dos Itens'])
     pedidos_df = pedidos_df[(pedidos_df['Peso dos Itens'] > 0) & (pedidos_df['Qtde. dos Itens'] > 0)]
     frota_df = frota_df[(frota_df['Capac. Kg'] > 0) & (frota_df['Capac. Cx'] > 0)]
-    if pedidos_df.empty ou frota_df.empty:
+    if pedidos_df.empty or frota_df.empty:
         st.error("Pedidos ou frota sem dados válidos!")
         return pedidos_df
     # Agrupamento por região baseado em cidade de entrega
@@ -386,13 +387,13 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
         veiculos_necessarios = []
         peso_restante = peso_total
         cx_restante = cx_total
-        while (peso_restante > 0 ou cx_restante > 0) and not frota_disp.empty:
+        while (peso_restante > 0 or cx_restante > 0) and not frota_disp.empty:
             veiculo = frota_disp.iloc[0]
             veiculos_necessarios.append(veiculo)
             peso_restante -= veiculo['Capac. Kg']
             cx_restante -= veiculo['Capac. Cx']
             frota_disp = frota_disp.iloc[1:]
-        if peso_restante > 0 ou cx_restante > 0:
+        if peso_restante > 0 or cx_restante > 0:
             st.warning(f"Região {regiao} excede a capacidade da frota disponível! Alguns pedidos podem ficar sem alocação.")
         # Distribuição de pedidos entre veículos
         pedidos_regiao = pedidos_regiao.sort_values(['Prioridade', 'Peso dos Itens'], ascending=[True, False])
@@ -550,13 +551,41 @@ def alocacao_regioes_por_veiculo(pedidos_df, frota_df, n_clusters=3, regioes_por
                     break
     return pedidos_df
 
-def resolver_vrp(pedidos_df, frota_df, capacidade_max=None):
+def get_osrm_distance_matrix(coords, osrm_url="http://router.project-osrm.org"):
+    """
+    Consulta a API OSRM e retorna a matriz de distâncias (em metros) entre os pontos.
+    coords: lista de tuplas (lat, lon)
+    Retorna: matriz de distâncias (NxN)
+    """
+    if not coords or len(coords) < 2:
+        return []
+    # OSRM espera lon,lat
+    coord_str = ";".join([f"{lon},{lat}" for lat, lon in coords])
+    url = f"{osrm_url}/table/v1/driving/{coord_str}?annotations=distance"
+    try:
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        if 'distances' in data:
+            return data['distances']
+        else:
+            print("[OSRM] Resposta sem matriz de distâncias.")
+            return None
+    except Exception as e:
+        print(f"[OSRM] Erro ao consultar matriz: {e}")
+        return None
+
+def resolver_vrp(pedidos_df, frota_df, capacidade_max=None, matriz_distancias=None):
     print(f"[LOG] resolver_vrp chamado com {len(pedidos_df)} pedidos e {len(frota_df)} veículos. Capacidade máxima: {capacidade_max}")
     coords = [(row['Latitude'], row['Longitude']) for _, row in pedidos_df.iterrows()]
     n = len(coords)
     num_veiculos = len(frota_df)
-    matriz = [[geodesic(coords[i], coords[j]).meters for j in range(n)] for i in range(n)]
-    print(f"[LOG] Matriz de distâncias calculada. Tamanho: {len(matriz)}x{len(matriz[0]) if matriz else 0}")
+    if matriz_distancias is not None:
+        matriz = matriz_distancias
+        print(f"[LOG] Usando matriz de distâncias fornecida (ex: OSRM). Tamanho: {len(matriz)}x{len(matriz[0]) if matriz else 0}")
+    else:
+        matriz = [[geodesic(coords[i], coords[j]).meters for j in range(n)] for i in range(n)]
+        print(f"[LOG] Matriz de distâncias geodésica calculada. Tamanho: {len(matriz)}x{len(matriz[0]) if matriz else 0}")
     manager = pywrapcp.RoutingIndexManager(n, num_veiculos, 0)
     routing = pywrapcp.RoutingModel(manager)
     def dist_callback(from_idx, to_idx):
