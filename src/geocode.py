@@ -63,3 +63,47 @@ def obter_coordenadas_com_fallback(endereco, coordenadas_salvas):
     if coords and coords != (None, None):
         coordenadas_salvas[endereco] = coords
     return coords
+
+def obter_regiao_por_coordenada(latitude, longitude):
+    """
+    Usa Nominatim (OpenStreetMap) para obter a região (bairro, cidade, estado) a partir de coordenadas.
+    Retorna uma string com a melhor informação disponível.
+    """
+    try:
+        from geopy.geocoders import Nominatim
+        geolocator = Nominatim(user_agent="delivery_router_reverse")
+        location = geolocator.reverse((latitude, longitude), language='pt-BR', addressdetails=True, timeout=10)
+        if location and location.raw and 'address' in location.raw:
+            address = location.raw['address']
+            # Tenta pegar bairro, cidade e estado
+            bairro = address.get('suburb') or address.get('neighbourhood') or address.get('quarter')
+            cidade = address.get('city') or address.get('town') or address.get('village') or address.get('municipality')
+            estado = address.get('state')
+            pais = address.get('country')
+            # Monta a string da região
+            regiao = ', '.join([v for v in [bairro, cidade, estado, pais] if v])
+            return regiao if regiao else None
+        return None
+    except Exception as e:
+        print(f"[LOG] Erro ao buscar região por coordenada: {e}")
+        return None
+
+def preencher_regioes_pedidos(pedidos_df):
+    """
+    Preenche a coluna 'Região' do DataFrame de pedidos usando as coordenadas (latitude, longitude)
+    e a função obter_regiao_por_coordenada do geocode.py.
+    """
+    from geocode import obter_regiao_por_coordenada
+    import time
+    regioes = []
+    for idx, row in pedidos_df.iterrows():
+        lat, lon = row['Latitude'], row['Longitude']
+        if pd.notnull(lat) and pd.notnull(lon):
+            regiao = obter_regiao_por_coordenada(lat, lon)
+            regioes.append(regiao)
+            print(f"[LOG] Pedido {idx}: Região encontrada: {regiao}")
+            time.sleep(1)  # Respeita o limite da API gratuita Nominatim
+        else:
+            regioes.append(None)
+    pedidos_df['Região'] = regioes
+    return pedidos_df

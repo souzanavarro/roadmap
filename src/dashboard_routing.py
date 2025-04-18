@@ -63,6 +63,18 @@ def dashboard_routing():
     frota_df = pd.read_csv(frota_db_path)
     st.write(f"[LOG] Pedidos carregados: {len(pedidos_df)} | Frota carregada: {len(frota_df)}")
 
+    # Preencher regiões reais a partir das coordenadas antes de qualquer agrupamento
+    from geocode import preencher_regioes_pedidos
+    if 'Região' not in pedidos_df.columns or pedidos_df['Região'].isnull().all():
+        st.info('Preenchendo regiões reais dos pedidos a partir das coordenadas (pode demorar alguns minutos na primeira vez)...')
+        pedidos_df = preencher_regioes_pedidos(pedidos_df)
+        st.success('Regiões preenchidas automaticamente!')
+        st.write(f"[LOG] Regiões detectadas: {pedidos_df['Região'].unique()}")
+
+    # Atualizar total_regioes para refletir as regiões reais
+    total_regioes = pedidos_df['Região'].nunique()
+    st.info(f'Total de regiões detectadas: {total_regioes}')
+
     # Opções de restrições e parâmetros avançados
     with st.expander('Restrições e Parâmetros Avançados'):
         modo_capacidade = st.radio('Como considerar a capacidade dos veículos?', [
@@ -86,14 +98,11 @@ def dashboard_routing():
         n_clusters = 3  # valor padrão
         regioes_por_veiculo = 1
         if 'Região' in prioridade_alocacao:
-            # Determinar total de regiões (clusters)
-            if 'Região' in pedidos_df.columns:
-                total_regioes = pedidos_df['Região'].nunique()
-            else:
-                total_regioes = 1
+            # Determinar total de regiões reais
+            total_regioes = pedidos_df['Região'].nunique()
+            st.info(f'Total de regiões detectadas: {total_regioes}')
             percentual_regioes = st.slider('Percentual de regiões (clusters)', min_value=5, max_value=100, value=10, step=5, help='Percentual de clusters em relação ao total de regiões distintas nos pedidos')
             n_clusters = max(1, int(total_regioes * percentual_regioes / 100))
-            st.info(f'Total de regiões (clusters) calculado: {n_clusters}')
             # CORREÇÃO: Slider só aparece se n_clusters > 1
             if n_clusters > 1:
                 regioes_por_veiculo = st.slider('Máximo de regiões por veículo', min_value=1, max_value=n_clusters, value=1)

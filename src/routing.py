@@ -67,9 +67,15 @@ def resolver_tsp_genetico(G):
     best_route, best_distance = genetic_algorithm(population)
     return best_route, best_distance
 
-def agrupar_por_regiao(pedidos_df, n_clusters):
-    kmeans = KMeans(n_clusters=n_clusters)
-    pedidos_df['Regiao'] = kmeans.fit_predict(pedidos_df[['Latitude', 'Longitude']])
+def agrupar_por_regiao(pedidos_df, n_clusters=None):
+    """
+    Agrupa pedidos por cidade de entrega. Ignora n_clusters.
+    """
+    pedidos_df = pedidos_df.copy()
+    if 'Cidade de Entrega' in pedidos_df.columns:
+        pedidos_df['Regiao'] = pedidos_df['Cidade de Entrega']
+    else:
+        pedidos_df['Regiao'] = None
     return pedidos_df
 
 def criar_grafo_rotas(pedidos_df):
@@ -359,7 +365,10 @@ def resolver_vrp(pedidos_df, frota_df, percentual_utilizacao=100):
 def agrupar_por_regiao(pedidos_df, n_clusters):
     """
     Agrupa pedidos por proximidade geográfica usando KMeans.
+    Remove linhas com Latitude ou Longitude faltando antes de agrupar.
     """
+    pedidos_df = pedidos_df.copy()
+    pedidos_df = pedidos_df.dropna(subset=['Latitude', 'Longitude'])
     kmeans = KMeans(n_clusters=n_clusters)
     pedidos_df['Regiao'] = kmeans.fit_predict(pedidos_df[['Latitude', 'Longitude']])
     return pedidos_df
@@ -428,21 +437,24 @@ def pre_processamento_frota_regiao(pedidos_df, frota_df, n_clusters=5):
     for regiao in pedidos_df['Regiao'].unique():
         pedidos_regiao = pedidos_df[pedidos_df['Regiao'] == regiao].copy()
         peso_total = pedidos_regiao['Peso dos Itens'].sum()
+        cx_total = pedidos_regiao['Qtde. dos Itens'].sum() if 'Qtde. dos Itens' in pedidos_regiao.columns else 0
         veiculos_necessarios = []
         peso_restante = peso_total
+        cx_restante = cx_total
         frota_disp = frota_df.copy()
-        while peso_restante > 0 or cx_restante > 0 and not frota_disp.empty:
+        while (peso_restante > 0 or cx_restante > 0) and not frota_disp.empty:
             veiculo = frota_disp.iloc[0]
             veiculos_necessarios.append(veiculo)
             peso_restante -= veiculo['Capac. Kg']
+            cx_restante -= veiculo['Capac. Cx'] if 'Capac. Cx' in veiculo else 0
             frota_disp = frota_disp.iloc[1:]
         if peso_restante > 0 or cx_restante > 0:
-            st.warning(f"Região {regiao} excede a capacidade da frota disponível! Alguns pedidos podem ficar sem alocação.")
+            print(f"Região {regiao} excede a capacidade da frota disponível! Alguns pedidos podem ficar sem alocação.")
         # Distribuir pedidos entre veículos sem repetir clientes
         pedidos_regiao = pedidos_regiao.sort_values('Peso dos Itens', ascending=False)
         clientes_alocados = set()
         idx_pedido = 0
-        for veiculo_idx, veiculo in enumerate(veiculos_necessarios):
+        for veiculo_idx, veiculo in veiculos_necessarios:
             capacidade_kg = veiculo['Capac. Kg']
             capacidade_cx = veiculo['Capac. Cx'] if 'Capac. Cx' in veiculo else np.inf
             peso_usado = 0
@@ -500,8 +512,11 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
     if pedidos_df.empty or frota_df.empty:
         st.error("Pedidos ou frota sem dados válidos!")
         return pedidos_df
-    # Agrupamento por região
-    pedidos_df['Regiao'] = KMeans(n_clusters=n_clusters, random_state=42).fit_predict(pedidos_df[['Latitude', 'Longitude']])
+    # Agrupamento por região baseado em cidade de entrega
+    if 'Cidade de Entrega' in pedidos_df.columns:
+        pedidos_df['Regiao'] = pedidos_df['Cidade de Entrega']
+    else:
+        pedidos_df['Regiao'] = None
     pedidos_df['Veiculo'] = None
     pedidos_df['Placa'] = None
     pedidos_df['Prioridade'] = 'Normal'
@@ -536,7 +551,7 @@ def pre_processamento_inteligente(pedidos_df, frota_df, n_clusters=5, prioridade
         pedidos_regiao = pedidos_regiao.sort_values(['Prioridade', 'Peso dos Itens'], ascending=[True, False])
         clientes_alocados = set()
         idx_pedido = 0
-        for veiculo_idx, veiculo in enumerate(veiculos_necessarios):
+        for veiculo_idx, veiculo in veiculos_necessarios:
             capacidade_kg = veiculo['Capac. Kg']
             capacidade_cx = veiculo['Capac. Cx']
             peso_usado = 0
